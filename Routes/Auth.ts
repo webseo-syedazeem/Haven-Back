@@ -1,4 +1,5 @@
 import express from "express"
+import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
 import {
     SignUp,
     SignIn,
@@ -127,8 +128,6 @@ AuthRoutes.post("/forgot-password", ForgotPassword)
  *             properties:
  *               newPassword:
  *                 type: string
- *               access_token:
- *                 type: string
  *             required:
  *               - newPassword
  *     responses:
@@ -170,7 +169,7 @@ AuthRoutes.post("/reset-password", ResetPassword)
  *       '401':
  *         description: Authentication failed
  */
-AuthRoutes.post("/change-password", ChangePassword)
+AuthRoutes.post("/change-password", AuthMiddleware, ChangePassword)
 
 /**
  * @swagger
@@ -187,6 +186,6 @@ AuthRoutes.post("/change-password", ChangePassword)
  *       '401':
  *         description: Invalid or missing session
  */
-AuthRoutes.get("/me", GetCurrentUser)
+AuthRoutes.get("/me", AuthMiddleware, GetCurrentUser)
 
 export default AuthRoutes

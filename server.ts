@@ -6,9 +6,11 @@ import path from "path"
 import swaggerUi from "swagger-ui-express"
 import swaggerJsdoc from "swagger-jsdoc"
 import Authroutes from "./Routes/Auth.ts"
+import SetupRoutes from "./Routes/Setup.ts"
+import CheckinRoutes from "./Routes/Checkin.ts"
 
 const app = express()
-const allowedCorsOrigin = process.env.CORS_ORIGIN || "http://localhost:8081"
+const allowedCorsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000"
 
 app.use(
     cors({
@@ -35,6 +37,8 @@ app.use(
 )
 
 app.use("/api", Authroutes)
+app.use("/api", SetupRoutes)
+app.use("/api", CheckinRoutes)
 
 // Swagger Config
 const options = {
@@ -65,6 +69,7 @@ const options = {
     apis: [
         path.resolve("server.ts"),
         path.resolve("Routes", "*.ts"),
+        path.resolve("Routes", "Checkin.ts"),
     ],
 }
 

@@ -19,20 +19,6 @@ const createAuthClient = (token: string) =>
         },
     })
 
-const getSessionUser = async (req: Request) => {
-    const token =
-        getBearerToken(req) ||
-        String(req.body?.access_token || req.query?.access_token || "")
-
-    if (!token) {
-        return { user: null, error: "Missing access token" }
-    }
-
-    const authClient = createAuthClient(token)
-    const { data, error } = await authClient.auth.getUser()
-    return { user: data.user, error }
-}
-
 export const SignUp = async (req: Request, res: Response) => {
     const { email, password, username } = req.body || {}
     const cleanEmail = String(email || "").trim().toLowerCase()
@@ -154,11 +140,7 @@ export const ChangePassword = async (req: Request, res: Response) => {
     }
 
     try {
-        const { user, error: sessionError } = await getSessionUser(req)
-        if (sessionError || !user) {
-            console.error("Change password auth error:", sessionError)
-            return res.status(401).json({ success: false, error: "Invalid or missing session" })
-        }
+        const user = req.user!
 
         const { error: reauthError } = await supabase.auth.signInWithPassword({
             email: String(user.email || ""),
@@ -188,11 +170,7 @@ export const ChangePassword = async (req: Request, res: Response) => {
 
 export const GetCurrentUser = async (req: Request, res: Response) => {
     try {
-        const { user, error } = await getSessionUser(req)
-        if (error || !user) {
-            console.error("Get current user auth error:", error)
-            return res.status(401).json({ success: false, error: "Invalid or missing session" })
-        }
+        const user = req.user!
 
         const { data: profile, error: profileError } = await supabaseAdmin
             .from("users")

@@ -8,6 +8,8 @@ import swaggerJsdoc from "swagger-jsdoc"
 import Authroutes from "./Routes/Auth.ts"
 import SetupRoutes from "./Routes/Setup.ts"
 import CheckinRoutes from "./Routes/Checkin.ts"
+import MoodRoutes from "./Routes/Mood.ts"
+import BreathingRoutes from "./Routes/Breathing.ts"
 
 const app = express()
 const allowedCorsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000"
@@ -39,6 +41,8 @@ app.use(
 app.use("/api", Authroutes)
 app.use("/api", SetupRoutes)
 app.use("/api", CheckinRoutes)
+app.use("/api", MoodRoutes)
+app.use("/api", BreathingRoutes)
 
 // Swagger Config
 const options = {

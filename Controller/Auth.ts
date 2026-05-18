@@ -80,6 +80,37 @@ export const SignIn = async (req: Request, res: Response) => {
     }
 }
 
+export const RefreshToken = async (req: Request, res: Response) => {
+    const { refresh_token } = req.body || {}
+    const cleanRefreshToken = String(refresh_token || "").trim()
+
+    if (!cleanRefreshToken) {
+        return res.status(400).json({ success: false, error: "refresh_token is required" })
+    }
+
+    try {
+        const { data, error } = await supabase.auth.refreshSession({
+            refresh_token: cleanRefreshToken,
+        })
+
+        if (error) {
+            console.error("Supabase refresh token error:", error)
+            return res.status(401).json({ success: false, error: error.message || "Invalid refresh token" })
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                session: data.session,
+                user: data.user,
+            },
+        })
+    } catch (err) {
+        console.error("Error refreshing token:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
 export const ForgotPassword = async (req: Request, res: Response) => {
     const { email } = req.body || {}
     const cleanEmail = String(email || "").trim().toLowerCase()

@@ -3,6 +3,7 @@ import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
 import {
     SignUp,
     SignIn,
+    RefreshToken,
     ForgotPassword,
     ResetPassword,
     ChangePassword,
@@ -85,6 +86,51 @@ AuthRoutes.post("/signup", SignUp)
  *         description: Invalid credentials
  */
 AuthRoutes.post("/signin", SignIn)
+
+/**
+ * @swagger
+ * /api/refresh-token:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Refresh authentication session with refresh token
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               refresh_token:
+ *                 type: string
+ *                 example: refresh-token-value
+ *             required:
+ *               - refresh_token
+ *     responses:
+ *       '200':
+ *         description: New session and user returned successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     session:
+ *                       type: object
+ *                     user:
+ *                       type: object
+ *       '400':
+ *         description: Missing refresh_token
+ *       '401':
+ *         description: Invalid refresh token
+ *       '500':
+ *         description: Server error
+ */
+AuthRoutes.post("/refresh-token", RefreshToken)
 
 /**
  * @swagger

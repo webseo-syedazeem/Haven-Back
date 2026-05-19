@@ -10,6 +10,7 @@ import SetupRoutes from "./Routes/Setup.ts"
 import CheckinRoutes from "./Routes/Checkin.ts"
 import MoodRoutes from "./Routes/Mood.ts"
 import BreathingRoutes from "./Routes/Breathing.ts"
+import SoundscapeRoutes from "./Routes/Soundscape.ts"
 
 const app = express()
 const allowedCorsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000"
@@ -43,6 +44,7 @@ app.use("/api", SetupRoutes)
 app.use("/api", CheckinRoutes)
 app.use("/api", MoodRoutes)
 app.use("/api", BreathingRoutes)
+app.use("/api", SoundscapeRoutes)
 
 // Swagger Config
 const options = {
@@ -102,7 +104,7 @@ const PORT = Number(process.env.PORT) || 3000
 const server = app.listen(PORT)
 
 server.on("listening", () => {
-    console.log(`Server running on port ${PORT}`)
+    console.log(`Server running on port http://localhost:${3000}`)
 })
 
 server.on("error", (error: NodeJS.ErrnoException) => {

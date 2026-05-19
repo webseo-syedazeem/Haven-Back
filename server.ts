@@ -11,6 +11,7 @@ import CheckinRoutes from "./Routes/Checkin.ts"
 import MoodRoutes from "./Routes/Mood.ts"
 import BreathingRoutes from "./Routes/Breathing.ts"
 import SoundscapeRoutes from "./Routes/Soundscape.ts"
+import ChecklistRoutes from "./Routes/Checklist.ts"
 
 const app = express()
 const allowedCorsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000"
@@ -45,6 +46,7 @@ app.use("/api", CheckinRoutes)
 app.use("/api", MoodRoutes)
 app.use("/api", BreathingRoutes)
 app.use("/api", SoundscapeRoutes)
+app.use("/api", ChecklistRoutes)
 
 // Swagger Config
 const options = {

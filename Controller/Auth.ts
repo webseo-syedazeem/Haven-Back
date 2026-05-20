@@ -244,6 +244,60 @@ export const UpdateName = async (req: Request, res: Response) => {
     }
 }
 
+export const Logout = async (req: Request, res: Response) => {
+    const token = getBearerToken(req)
+
+    if (!token) {
+        return res.status(401).json({ success: false, error: "Missing authorization token" })
+    }
+
+    try {
+        const authClient = createAuthClient(token)
+        const { error } = await authClient.auth.signOut()
+
+        if (error) {
+            console.error("Supabase logout error:", error)
+            return res.status(400).json({ success: false, error: error.message || error })
+        }
+
+        return res.status(200).json({ success: true, data: { message: "Logged out successfully" } })
+    } catch (err) {
+        console.error("Error logging out:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
+export const DeleteAccount = async (req: Request, res: Response) => {
+    try {
+        const user = req.user!
+
+        const { error: profileError } = await supabaseAdmin
+            .from("users")
+            .delete()
+            .eq("auth_user_id", user.id)
+
+        if (profileError) {
+            console.error("Delete user profile error:", profileError)
+            return res.status(500).json({ success: false, error: "Failed to delete user profile" })
+        }
+
+        const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
+
+        if (authError) {
+            console.error("Delete auth user error:", authError)
+            return res.status(500).json({ success: false, error: "Failed to delete user account" })
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: { message: "Account deleted successfully" },
+        })
+    } catch (err) {
+        console.error("Error deleting account:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
 export const GetCurrentUser = async (req: Request, res: Response) => {
     try {
         const user = req.user!

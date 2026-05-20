@@ -8,6 +8,8 @@ import {
     ResetPassword,
     ChangePassword,
     UpdateName,
+    Logout,
+    DeleteAccount,
     GetCurrentUser,
 } from "../Controller/Auth.ts"
 
@@ -268,6 +270,70 @@ AuthRoutes.post("/change-password", AuthMiddleware, ChangePassword)
  *         description: Server error
  */
 AuthRoutes.put("/update-name", AuthMiddleware, UpdateName)
+
+/**
+ * @swagger
+ * /api/logout:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Log out the current authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: Logged out successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: Logged out successfully
+ *       '401':
+ *         description: Invalid or missing session
+ *       '500':
+ *         description: Server error
+ */
+AuthRoutes.post("/logout", AuthMiddleware, Logout)
+
+/**
+ * @swagger
+ * /api/delete-account:
+ *   delete:
+ *     tags:
+ *       - Auth
+ *     summary: Delete the current authenticated user's account
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: Account deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: Account deleted successfully
+ *       '401':
+ *         description: Invalid or missing session
+ *       '500':
+ *         description: Failed to delete account
+ */
+AuthRoutes.delete("/delete-account", AuthMiddleware, DeleteAccount)
 
 /**
  * @swagger

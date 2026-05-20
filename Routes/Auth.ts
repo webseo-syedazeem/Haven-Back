@@ -7,6 +7,7 @@ import {
     ForgotPassword,
     ResetPassword,
     ChangePassword,
+    UpdateName,
     GetCurrentUser,
 } from "../Controller/Auth.ts"
 
@@ -216,6 +217,57 @@ AuthRoutes.post("/reset-password", ResetPassword)
  *         description: Authentication failed
  */
 AuthRoutes.post("/change-password", AuthMiddleware, ChangePassword)
+
+/**
+ * @swagger
+ * /api/update-name:
+ *   put:
+ *     tags:
+ *       - Auth
+ *     summary: Update name for the current authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               first_name:
+ *                 type: string
+ *                 example: Jane
+ *               last_name:
+ *                 type: string
+ *                 example: Doe
+ *             required:
+ *               - first_name
+ *               - last_name
+ *     responses:
+ *       '200':
+ *         description: Name updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                     profile:
+ *                       type: object
+ *       '400':
+ *         description: Bad request
+ *       '401':
+ *         description: Invalid or missing session
+ *       '500':
+ *         description: Server error
+ */
+AuthRoutes.put("/update-name", AuthMiddleware, UpdateName)
 
 /**
  * @swagger

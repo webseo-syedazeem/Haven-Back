@@ -199,6 +199,51 @@ export const ChangePassword = async (req: Request, res: Response) => {
     }
 }
 
+export const UpdateName = async (req: Request, res: Response) => {
+    const { first_name, last_name } = req.body || {}
+    const cleanFirstName = String(first_name || "").trim()
+    const cleanLastName = String(last_name || "").trim()
+
+    if (!cleanFirstName || !cleanLastName) {
+        return res.status(400).json({ success: false, error: "first_name and last_name are required" })
+    }
+
+    try {
+        const user = req.user!
+        const fullName = `${cleanFirstName} ${cleanLastName}`
+
+        const { data: updatedProfile, error: profileError } = await supabaseAdmin
+            .from("users")
+            .update({ name: fullName, updated_at: new Date().toISOString() })
+            .eq("auth_user_id", user.id)
+            .select("id, auth_user_id, name, email, is_verified, last_sign_in_at, created_at, updated_at")
+            .single()
+
+        if (profileError || !updatedProfile) {
+            console.error("Update name profile error:", profileError)
+            return res.status(500).json({ success: false, error: "Failed to update user profile" })
+        }
+
+        const { data: updatedAuthUser, error: authError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+            user_metadata: {
+                full_name: fullName,
+                first_name: cleanFirstName,
+                last_name: cleanLastName,
+            },
+        })
+
+        if (authError) {
+            console.error("Update name auth metadata error:", authError)
+            return res.status(400).json({ success: false, error: authError.message || authError })
+        }
+
+        return res.status(200).json({ success: true, data: { user: updatedAuthUser.user, profile: updatedProfile } })
+    } catch (err) {
+        console.error("Error updating name:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
 export const GetCurrentUser = async (req: Request, res: Response) => {
     try {
         const user = req.user!

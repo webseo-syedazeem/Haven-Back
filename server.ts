@@ -12,6 +12,9 @@ import MoodRoutes from "./Routes/Mood.ts"
 import BreathingRoutes from "./Routes/Breathing.ts"
 import SoundscapeRoutes from "./Routes/Soundscape.ts"
 import ChecklistRoutes from "./Routes/Checklist.ts"
+import GoalsRoutes from "./Routes/Goals.ts"
+import FavouritesRoutes from "./Routes/Favourites.ts"
+import NotificationsRoutes from "./Routes/Notifications.ts"
 
 const app = express()
 const allowedCorsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000"
@@ -47,6 +50,9 @@ app.use("/api", MoodRoutes)
 app.use("/api", BreathingRoutes)
 app.use("/api", SoundscapeRoutes)
 app.use("/api", ChecklistRoutes)
+app.use("/api", GoalsRoutes)
+app.use("/api", FavouritesRoutes)
+app.use("/api", NotificationsRoutes)
 
 // Swagger Config
 const options = {

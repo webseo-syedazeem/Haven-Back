@@ -17,7 +17,6 @@ import FavouritesRoutes from "./Routes/Favourites.ts"
 import NotificationsRoutes from "./Routes/Notifications.ts"
 import TrackRoutes from "./Routes/Track.ts"
 import ProgressRoutes from "./Routes/Progress.ts"
-import SubscriptionRoutes from "./Routes/Subscription.ts"
 
 const app = express()
 const allowedCorsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000"
@@ -34,7 +33,6 @@ app.use(
     })
 )
 
-app.use("/api/subscription/webhook", express.raw({ type: "application/json" }))
 app.use(express.json())
 
 morgan.token("time", () => {
@@ -59,7 +57,6 @@ app.use("/api", FavouritesRoutes)
 app.use("/api", NotificationsRoutes)
 app.use("/api", TrackRoutes)
 app.use("/api", ProgressRoutes)
-app.use("/api", SubscriptionRoutes)
 
 // Swagger Config
 const options = {

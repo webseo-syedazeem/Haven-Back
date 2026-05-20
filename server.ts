@@ -15,6 +15,8 @@ import ChecklistRoutes from "./Routes/Checklist.ts"
 import GoalsRoutes from "./Routes/Goals.ts"
 import FavouritesRoutes from "./Routes/Favourites.ts"
 import NotificationsRoutes from "./Routes/Notifications.ts"
+import TrackRoutes from "./Routes/Track.ts"
+import ProgressRoutes from "./Routes/Progress.ts"
 
 const app = express()
 const allowedCorsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000"
@@ -53,6 +55,8 @@ app.use("/api", ChecklistRoutes)
 app.use("/api", GoalsRoutes)
 app.use("/api", FavouritesRoutes)
 app.use("/api", NotificationsRoutes)
+app.use("/api", TrackRoutes)
+app.use("/api", ProgressRoutes)
 
 // Swagger Config
 const options = {

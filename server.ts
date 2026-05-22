@@ -20,20 +20,18 @@ import ProgressRoutes from "./Routes/Progress.ts"
 import SubscriptionRoutes from "./Routes/Subscription.ts"
 
 const app = express()
-const allowedCorsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000"
+const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000").split(",")
 
 app.use(
     cors({
         origin: (origin, callback) => {
-            if (!origin || origin === allowedCorsOrigin) {
+            if (!origin || allowedOrigins.includes(origin)) {
                 return callback(null, true)
             }
-
             return callback(new Error("Not allowed by CORS"))
         },
     })
 )
-
 app.use("/api/subscription/webhook", express.raw({ type: "application/json" }))
 app.use(express.json())
 

@@ -20,6 +20,20 @@ import ProgressRoutes from "./Routes/Progress.ts"
 import SubscriptionRoutes from "./Routes/Subscription.ts"
 
 const app = express()
+const PORT = Number(process.env.PORT) || 3000
+const localApiUrl = process.env.LOCAL_API_URL || `http://localhost:${PORT}`
+const productionApiUrl =
+    process.env.PRODUCTION_API_URL || "http://18.171.253.186:3000"
+const isProduction = process.env.NODE_ENV === "production"
+const swaggerServers = isProduction
+    ? [
+          { url: productionApiUrl, description: "Production" },
+          { url: localApiUrl, description: "Development" },
+      ]
+    : [
+          { url: localApiUrl, description: "Development" },
+          { url: productionApiUrl, description: "Production" },
+      ]
 const allowedCorsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000"
 
 app.use(
@@ -70,11 +84,7 @@ const options = {
             version: "1.0.0",
             description: "Haven API documentation",
         },
-        servers: [
-            {
-                url: "http://localhost:3000",
-            },
-        ],
+        servers: swaggerServers,
         components: {
             securitySchemes: {
                 bearerAuth: {
@@ -114,12 +124,10 @@ app.get("/", (req, res) => {
     })
 })
 
-const PORT = Number(process.env.PORT) || 3000
-
 const server = app.listen(PORT)
 
 server.on("listening", () => {
-    console.log(`Server running on port http://localhost:${3000}`)
+    console.log(`Server running on ${localApiUrl}`)
 })
 
 server.on("error", (error: NodeJS.ErrnoException) => {

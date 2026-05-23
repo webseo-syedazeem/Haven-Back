@@ -21,6 +21,7 @@ import SubscriptionRoutes from "./Routes/Subscription.ts"
 
 const app = express()
 const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000").split(",")
+const soundscapesPath = path.join(process.cwd(), "public", "soundscapes")
 
 app.use(
     cors({
@@ -44,7 +45,7 @@ app.use(
         ":time | :method :url | Status: :status | Response Time: :response-time ms"
     )
 )
-
+app.use("/soundscapes", express.static(soundscapesPath))
 app.use("/api", Authroutes)
 app.use("/api", SetupRoutes)
 app.use("/api", CheckinRoutes)

@@ -2,6 +2,7 @@ import express from "express"
 import "dotenv/config"
 import cors from "cors"
 import morgan from "morgan"
+import fs from "fs"
 import path from "path"
 import swaggerUi from "swagger-ui-express"
 import swaggerJsdoc from "swagger-jsdoc"
@@ -22,6 +23,7 @@ import SubscriptionRoutes from "./Routes/Subscription.ts"
 const app = express()
 const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000").split(",")
 const soundscapesPath = path.join(process.cwd(), "public", "soundscapes")
+const audioChunkSize = 1024 * 1024
 
 app.use(
     cors({
@@ -45,6 +47,54 @@ app.use(
         ":time | :method :url | Status: :status | Response Time: :response-time ms"
     )
 )
+app.get(/^\/soundscapes\/(.+\.wav)$/i, (req, res) => {
+    const relativeFilePath = req.params[0]
+    const filePath = path.resolve(soundscapesPath, relativeFilePath)
+
+    if (!filePath.startsWith(`${soundscapesPath}${path.sep}`)) {
+        return res.status(403).json({ message: "Invalid soundscape path" })
+    }
+
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ message: "Soundscape not found" })
+    }
+
+    const fileSize = fs.statSync(filePath).size
+    const range = req.headers.range
+    const commonHeaders = {
+        "Accept-Ranges": "bytes",
+        "Content-Type": "audio/wav",
+        "Cache-Control": "public, max-age=31536000, immutable",
+    }
+
+    if (!range) {
+        res.writeHead(200, {
+            ...commonHeaders,
+            "Content-Length": fileSize,
+        })
+
+        return fs.createReadStream(filePath).pipe(res)
+    }
+
+    const [startText, endText] = range.replace(/bytes=/, "").split("-")
+    const start = Number.parseInt(startText, 10)
+    const requestedEnd = endText ? Number.parseInt(endText, 10) : start + audioChunkSize - 1
+
+    if (Number.isNaN(start) || start >= fileSize) {
+        return res.status(416).set("Content-Range", `bytes */${fileSize}`).end()
+    }
+
+    const end = Math.min(requestedEnd, fileSize - 1)
+    const contentLength = end - start + 1
+
+    res.writeHead(206, {
+        ...commonHeaders,
+        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Content-Length": contentLength,
+    })
+
+    return fs.createReadStream(filePath, { start, end }).pipe(res)
+})
 app.use("/soundscapes", express.static(soundscapesPath))
 app.use("/api", Authroutes)
 app.use("/api", SetupRoutes)

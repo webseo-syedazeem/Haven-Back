@@ -67,16 +67,7 @@ app.get(/^\/soundscapes\/(.+\.wav)$/i, (req, res) => {
         "Cache-Control": "public, max-age=31536000, immutable",
     }
 
-    if (!range) {
-        res.writeHead(200, {
-            ...commonHeaders,
-            "Content-Length": fileSize,
-        })
-
-        return fs.createReadStream(filePath).pipe(res)
-    }
-
-    const [startText, endText] = range.replace(/bytes=/, "").split("-")
+    const [startText, endText] = range ? range.replace(/bytes=/, "").split("-") : ["0", ""]
     const start = Number.parseInt(startText, 10)
     const requestedEnd = endText ? Number.parseInt(endText, 10) : start + audioChunkSize - 1
 

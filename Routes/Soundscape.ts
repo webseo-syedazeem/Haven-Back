@@ -1,6 +1,15 @@
 import express from "express"
-import { GetAllSoundscapes, GetSoundscapesByPillar, GetOneSoundscape, SaveMix, GetUserMixes, GetOneMix, UpdateMix, DeleteMix } from "../Controller/Soundscape.ts"
 import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
+import {
+    CreateMix,
+    DeleteMix,
+    GetAllSoundscapes,
+    GetOneMix,
+    GetOneSoundscape,
+    GetSoundscapesByCategory,
+    GetUserMixes,
+    UpdateMix,
+} from "../Controller/Soundscape.ts"
 
 const SoundscapeRoutes = express.Router()
 
@@ -17,32 +26,10 @@ const SoundscapeRoutes = express.Router()
  *   get:
  *     tags:
  *       - Soundscapes
- *     summary: Get all soundscapes grouped by pillar
+ *     summary: Get all soundscapes grouped by category
  *     responses:
  *       '200':
  *         description: Soundscapes returned successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     calm:
- *                       type: array
- *                       items:
- *                         type: object
- *                     sleep:
- *                       type: array
- *                       items:
- *                         type: object
- *                     focus:
- *                       type: array
- *                       items:
- *                         type: object
  *       '500':
  *         description: Server error
  */
@@ -51,29 +38,61 @@ SoundscapeRoutes.get("/soundscapes", GetAllSoundscapes)
 /**
  * @swagger
  * /api/soundscapes/mix:
+ *   post:
+ *     tags:
+ *       - Soundscapes
+ *     summary: Create a soundscape mix for the current authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - soundscape_ids
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Evening calm mix
+ *               soundscape_ids:
+ *                 type: array
+ *                 minItems: 2
+ *                 maxItems: 5
+ *                 items:
+ *                   type: string
+ *                   format: uuid
+ *               volumes:
+ *                 type: object
+ *                 example:
+ *                   00000000-0000-0000-0000-000000000000: 0.8
+ *                   11111111-1111-4111-8111-111111111111: 0.5
+ *     responses:
+ *       '201':
+ *         description: Soundscape mix created successfully
+ *       '400':
+ *         description: Missing or invalid soundscape mix data
+ *       '401':
+ *         description: Invalid or missing session
+ *       '500':
+ *         description: Server error
+ */
+SoundscapeRoutes.post("/soundscapes/mix", AuthMiddleware, CreateMix)
+
+/**
+ * @swagger
+ * /api/soundscapes/mix:
  *   get:
  *     tags:
  *       - Soundscapes
- *     summary: Get saved soundscape mixes for current authenticated user
+ *     summary: Get saved soundscape mixes for the current authenticated user
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       '200':
- *         description: Soundscape mixes returned successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     mixes:
- *                       type: array
- *                       items:
- *                         type: object
+ *         description: Soundscape mixes returned successfully with soundscape details
  *       '401':
  *         description: Invalid or missing session
  *       '500':
@@ -83,59 +102,11 @@ SoundscapeRoutes.get("/soundscapes/mix", AuthMiddleware, GetUserMixes)
 
 /**
  * @swagger
- * /api/soundscapes/mix:
- *   post:
- *     tags:
- *       - Soundscapes
- *     summary: Save a soundscape mix for current authenticated user
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               soundscape_id:
- *                 type: string
- *                 format: uuid
- *                 example: 00000000-0000-0000-0000-000000000000
- *               mix_name:
- *                 type: string
- *                 example: Evening calm mix
- *               layer_settings_json:
- *                 type: object
- *                 example:
- *                   rain: 0.7
- *                   wind: 0.25
- *               timer_default:
- *                 type: integer
- *                 example: 1800
- *             required:
- *               - soundscape_id
- *               - mix_name
- *               - layer_settings_json
- *               - timer_default
- *     responses:
- *       '200':
- *         description: Soundscape mix saved successfully
- *       '400':
- *         description: Missing or invalid soundscape mix data
- *       '401':
- *         description: Invalid or missing session
- *       '500':
- *         description: Server error
- */
-SoundscapeRoutes.post("/soundscapes/mix", AuthMiddleware, SaveMix)
-
-/**
- * @swagger
  * /api/soundscapes/mix/{id}:
  *   get:
  *     tags:
  *       - Soundscapes
- *     summary: Get one saved soundscape mix for current authenticated user
+ *     summary: Get one saved soundscape mix for the current authenticated user
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -148,35 +119,7 @@ SoundscapeRoutes.post("/soundscapes/mix", AuthMiddleware, SaveMix)
  *         description: Soundscape mix id
  *     responses:
  *       '200':
- *         description: Soundscape mix returned successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     mix:
- *                       type: object
- *                       properties:
- *                         id:
- *                           type: string
- *                           format: uuid
- *                         user_id:
- *                           type: string
- *                           format: uuid
- *                         soundscape_id:
- *                           type: string
- *                           format: uuid
- *                         mix_name:
- *                           type: string
- *                         layer_settings_json:
- *                           type: object
- *                         timer_default:
- *                           type: integer
+ *         description: Soundscape mix returned successfully with soundscape details
  *       '401':
  *         description: Invalid or missing session
  *       '404':
@@ -192,7 +135,7 @@ SoundscapeRoutes.get("/soundscapes/mix/:id", AuthMiddleware, GetOneMix)
  *   put:
  *     tags:
  *       - Soundscapes
- *     summary: Update current authenticated user's soundscape mix
+ *     summary: Update the current authenticated user's soundscape mix
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -210,32 +153,26 @@ SoundscapeRoutes.get("/soundscapes/mix/:id", AuthMiddleware, GetOneMix)
  *           schema:
  *             type: object
  *             properties:
- *               mix_name:
+ *               name:
  *                 type: string
  *                 example: Morning focus mix
- *               layer_settings_json:
+ *               soundscape_ids:
+ *                 type: array
+ *                 minItems: 2
+ *                 maxItems: 5
+ *                 items:
+ *                   type: string
+ *                   format: uuid
+ *               volumes:
  *                 type: object
  *                 example:
- *                   rain: 0.4
- *                   birds: 0.8
- *               timer_default:
- *                 type: integer
- *                 example: 1200
+ *                   00000000-0000-0000-0000-000000000000: 0.6
+ *                   11111111-1111-4111-8111-111111111111: 0.7
  *     responses:
  *       '200':
  *         description: Soundscape mix updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     mix:
- *                       type: object
+ *       '400':
+ *         description: Missing or invalid soundscape mix data
  *       '401':
  *         description: Invalid or missing session
  *       '404':
@@ -251,7 +188,7 @@ SoundscapeRoutes.put("/soundscapes/mix/:id", AuthMiddleware, UpdateMix)
  *   delete:
  *     tags:
  *       - Soundscapes
- *     summary: Delete current authenticated user's soundscape mix
+ *     summary: Delete the current authenticated user's soundscape mix
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -276,42 +213,27 @@ SoundscapeRoutes.delete("/soundscapes/mix/:id", AuthMiddleware, DeleteMix)
 
 /**
  * @swagger
- * /api/soundscapes/{pillar}:
+ * /api/soundscapes/{category}:
  *   get:
  *     tags:
  *       - Soundscapes
- *     summary: Get soundscapes by pillar
+ *     summary: Get soundscapes by category
  *     parameters:
  *       - in: path
- *         name: pillar
+ *         name: category
  *         required: true
  *         schema:
  *           type: string
- *           enum: [calm, sleep, focus]
- *         description: Soundscape pillar
+ *         description: Soundscape category
  *     responses:
  *       '200':
  *         description: Soundscapes returned successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     soundscapes:
- *                       type: array
- *                       items:
- *                         type: object
  *       '400':
- *         description: Invalid pillar
+ *         description: Missing category
  *       '500':
  *         description: Server error
  */
-SoundscapeRoutes.get("/soundscapes/:pillar", GetSoundscapesByPillar)
+SoundscapeRoutes.get("/soundscapes/:category", GetSoundscapesByCategory)
 
 /**
  * @swagger
@@ -319,7 +241,7 @@ SoundscapeRoutes.get("/soundscapes/:pillar", GetSoundscapesByPillar)
  *   get:
  *     tags:
  *       - Soundscapes
- *     summary: Get one soundscape with layers
+ *     summary: Get one soundscape
  *     parameters:
  *       - in: path
  *         name: id
@@ -330,23 +252,7 @@ SoundscapeRoutes.get("/soundscapes/:pillar", GetSoundscapesByPillar)
  *         description: Soundscape id
  *     responses:
  *       '200':
- *         description: Soundscape returned successfully with layers
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     soundscape:
- *                       type: object
- *                     layers:
- *                       type: array
- *                       items:
- *                         type: object
+ *         description: Soundscape returned successfully
  *       '404':
  *         description: Soundscape not found
  *       '500':

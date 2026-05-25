@@ -216,7 +216,7 @@ export const UpdateName = async (req: Request, res: Response) => {
             .from("users")
             .update({ name: fullName, updated_at: new Date().toISOString() })
             .eq("auth_user_id", user.id)
-            .select("id, auth_user_id, name, email, is_verified, last_sign_in_at, created_at, updated_at")
+            .select("id, auth_user_id, name, email, profile_image_url, is_verified, last_sign_in_at, created_at, updated_at")
             .single()
 
         if (profileError || !updatedProfile) {
@@ -304,7 +304,7 @@ export const GetCurrentUser = async (req: Request, res: Response) => {
 
         const { data: profile, error: profileError } = await supabaseAdmin
             .from("users")
-            .select("id, auth_user_id, name, email, is_verified, last_sign_in_at, created_at, updated_at")
+            .select("id, auth_user_id, name, email, profile_image_url, is_verified, last_sign_in_at, created_at, updated_at")
             .eq("auth_user_id", user.id)
             .single()
 

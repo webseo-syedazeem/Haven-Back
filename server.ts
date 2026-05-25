@@ -1,7 +1,9 @@
 import express from "express"
 import "dotenv/config"
 import cors from "cors"
+import helmet from "helmet"
 import morgan from "morgan"
+import rateLimit from "express-rate-limit"
 import fs from "fs"
 import path from "path"
 import swaggerUi from "swagger-ui-express"
@@ -33,6 +35,27 @@ const AUDIO_CONTENT_TYPES: Record<string, string> = {
     ".wav": "audio/wav",
 }
 
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: false,
+}))
+
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: { success: false, error: "Too many requests, please try again later" },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: { success: false, error: "Too many auth attempts, please try again later" },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+
 app.use(
     cors({
         origin: (origin, callback) => {
@@ -43,8 +66,13 @@ app.use(
         },
     })
 )
+app.use("/api", apiLimiter)
+app.use("/api/signin", authLimiter)
+app.use("/api/signup", authLimiter)
+app.use("/api/forgot-password", authLimiter)
 app.use("/api/subscription/webhook", express.raw({ type: "application/json" }))
-app.use(express.json())
+app.use(express.json({ limit: "10kb" }))
+app.use(express.urlencoded({ extended: true, limit: "10kb" }))
 
 morgan.token("time", () => {
     return new Date().toLocaleString()

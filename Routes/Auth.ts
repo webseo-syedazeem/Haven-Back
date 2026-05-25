@@ -12,6 +12,7 @@ import {
     DeleteAccount,
     GetCurrentUser,
 } from "../Controller/Auth.ts"
+import { ProfileImageUploadMiddleware, UploadProfileImage } from "../Controller/UploadProfileImage.ts"
 
 const AuthRoutes = express.Router()
 
@@ -270,6 +271,39 @@ AuthRoutes.post("/change-password", AuthMiddleware, ChangePassword)
  *         description: Server error
  */
 AuthRoutes.put("/update-name", AuthMiddleware, UpdateName)
+
+/**
+ * @swagger
+ * /api/upload-profile-image:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Upload a profile image for the current authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - image
+ *             properties:
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       '200':
+ *         description: Profile image uploaded successfully
+ *       '400':
+ *         description: Missing, oversized, or unsupported image
+ *       '401':
+ *         description: Invalid or missing session
+ *       '500':
+ *         description: Server error
+ */
+AuthRoutes.post("/upload-profile-image", AuthMiddleware, ProfileImageUploadMiddleware, UploadProfileImage)
 
 /**
  * @swagger

@@ -66,13 +66,19 @@ app.use(
         },
     })
 )
-app.use("/api", apiLimiter)
-app.use("/api/signin", authLimiter)
-app.use("/api/signup", authLimiter)
-app.use("/api/forgot-password", authLimiter)
 app.use("/api/subscription/webhook", express.raw({ type: "application/json" }))
-app.use(express.json({ limit: "10kb" }))
-app.use(express.urlencoded({ extended: true, limit: "10kb" }))
+
+if (process.env.NODE_ENV === "Production") {
+    app.use("/api", apiLimiter)
+    app.use("/api/signin", authLimiter)
+    app.use("/api/signup", authLimiter)
+    app.use("/api/forgot-password", authLimiter)
+    app.use(express.json({ limit: "10kb" }))
+    app.use(express.urlencoded({ extended: true, limit: "10kb" }))
+} else {
+    app.use(express.json())
+    app.use(express.urlencoded({ extended: true }))
+}
 
 morgan.token("time", () => {
     return new Date().toLocaleString()

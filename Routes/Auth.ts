@@ -3,6 +3,7 @@ import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
 import {
     SignUp,
     SignIn,
+    GoogleSignIn,
     RefreshToken,
     ForgotPassword,
     ResetPassword,
@@ -90,6 +91,37 @@ AuthRoutes.post("/signup", SignUp)
  *         description: Invalid credentials
  */
 AuthRoutes.post("/signin", SignIn)
+
+/**
+ * @swagger
+ * /api/auth/google:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Sign in with a Google ID token
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               id_token:
+ *                 type: string
+ *                 example: google-id-token
+ *             required:
+ *               - id_token
+ *     responses:
+ *       '200':
+ *         description: Google sign in successful
+ *       '400':
+ *         description: Missing id_token
+ *       '401':
+ *         description: Invalid Google token
+ *       '500':
+ *         description: Server error
+ */
+AuthRoutes.post("/auth/google", GoogleSignIn)
 
 /**
  * @swagger

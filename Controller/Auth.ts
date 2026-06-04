@@ -80,6 +80,72 @@ export const SignIn = async (req: Request, res: Response) => {
     }
 }
 
+export const GoogleSignIn = async (req: Request, res: Response) => {
+    const { id_token } = req.body || {}
+
+    if (!id_token) {
+        return res.status(400).json({ success: false, error: "id_token is required" })
+    }
+
+    try {
+        const { data, error } = await supabaseAdmin.auth.signInWithIdToken({
+            provider: "google",
+            token: id_token,
+        })
+
+        if (error || !data.user) {
+            return res.status(401).json({ success: false, error: "Invalid Google token" })
+        }
+
+        const authUser = data.user
+        const email = authUser.email || ""
+        const name =
+            authUser.user_metadata?.full_name ||
+            authUser.user_metadata?.name ||
+            email.split("@")[0]
+
+        const { data: existingProfile } = await supabaseAdmin
+            .from("users")
+            .select("*")
+            .eq("auth_user_id", authUser.id)
+            .maybeSingle()
+
+        let profile = existingProfile
+
+        if (!profile) {
+            const { data: newProfile, error: profileError } = await supabaseAdmin
+                .from("users")
+                .insert({
+                    auth_user_id: authUser.id,
+                    email,
+                    name,
+                    is_verified: true,
+                })
+                .select("*")
+                .single()
+
+            if (profileError) {
+                console.error("Google sign in profile create error:", profileError)
+                return res.status(500).json({ success: false, error: "Failed to create profile" })
+            }
+
+            profile = newProfile
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                session: data.session,
+                user: authUser,
+                profile,
+            },
+        })
+    } catch (err) {
+        console.error("Google sign in error:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
 export const RefreshToken = async (req: Request, res: Response) => {
     const { refresh_token } = req.body || {}
     const cleanRefreshToken = String(refresh_token || "").trim()

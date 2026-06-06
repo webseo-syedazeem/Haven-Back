@@ -58,6 +58,11 @@ const SetupRoutes = express.Router()
  *                   type: string
  *                   enum: [Breathwork, Soundscapes, Movements, Check-ins, Reflection]
  *                 example: [Breathwork, Reflection]
+ *               stress_triggers:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["Work/study", "Overthinking"]
  *             required:
  *               - mood
  *               - sleep_quality
@@ -121,6 +126,11 @@ SetupRoutes.post("/setup", AuthMiddleware, SaveSetup)
  *                   type: string
  *                   enum: [Breathwork, Soundscapes, Movements, Check-ins, Reflection]
  *                 example: [Breathwork, Soundscapes]
+ *               stress_triggers:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["Work/study", "Overthinking"]
  *     responses:
  *       '200':
  *         description: Setup updated successfully

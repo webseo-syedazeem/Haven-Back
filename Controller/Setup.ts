@@ -7,6 +7,14 @@ const VALID_DAY_FEEL = ["Busy mornings", "Long workdays", "Energy dips", "Caring
 const VALID_GOALS = ["Feel calmer first", "Sleep better", "Focus More", "Build healthy habits", "Stop spiraling", "Recover after work"]
 const VALID_TIME = ["3 min", "5 min", "10 min", "15 min"]
 const VALID_SUPPORT = ["Breathwork", "Soundscapes", "Movements", "Check-ins", "Reflection"]
+const VALID_TRIGGERS = [
+    "Work/study",
+    "Overthinking",
+    "Poor sleep",
+    "Social stress",
+    "Finances",
+    "Health",
+]
 
 const isAllowedValue = (value: string, allowedValues: string[]) => allowedValues.includes(value)
 
@@ -262,6 +270,7 @@ export const SaveSetup = async (req: Request, res: Response) => {
         goal,
         time_preference,
         support_types,
+        stress_triggers,
     } = req.body || {}
 
     const cleanMood = String(mood || "").trim()
@@ -271,6 +280,11 @@ export const SaveSetup = async (req: Request, res: Response) => {
     const cleanTimePreference = String(time_preference || "").trim()
     const cleanSupportTypes = Array.isArray(support_types)
         ? support_types.map((supportType) => String(supportType || "").trim())
+        : []
+    const cleanStressTriggers = Array.isArray(stress_triggers)
+        ? stress_triggers
+            .map((trigger) => String(trigger || "").trim())
+            .filter((trigger) => VALID_TRIGGERS.includes(trigger))
         : []
 
     if (!cleanMood || !cleanSleepQuality || !cleanDayFeel || !cleanGoal || !cleanTimePreference || cleanSupportTypes.length === 0) {
@@ -335,6 +349,7 @@ export const SaveSetup = async (req: Request, res: Response) => {
                 goal: cleanGoal,
                 time_preference: cleanTimePreference,
                 support_types: cleanSupportTypes,
+                stress_triggers: cleanStressTriggers,
                 plan,
                 updated_at: new Date().toISOString(),
             }, {
@@ -363,6 +378,7 @@ export const UpdateSetup = async (req: Request, res: Response) => {
         goal,
         time_preference,
         support_types,
+        stress_triggers,
     } = req.body || {}
 
     const hasMood = mood !== undefined
@@ -371,8 +387,9 @@ export const UpdateSetup = async (req: Request, res: Response) => {
     const hasGoal = goal !== undefined
     const hasTimePreference = time_preference !== undefined
     const hasSupportTypes = support_types !== undefined
+    const hasStressTriggers = stress_triggers !== undefined
 
-    if (!hasMood && !hasSleepQuality && !hasDayFeel && !hasGoal && !hasTimePreference && !hasSupportTypes) {
+    if (!hasMood && !hasSleepQuality && !hasDayFeel && !hasGoal && !hasTimePreference && !hasSupportTypes && !hasStressTriggers) {
         return res.status(400).json({ success: false, error: "At least one field is required to update" })
     }
 
@@ -383,6 +400,11 @@ export const UpdateSetup = async (req: Request, res: Response) => {
     const cleanTimePreference = hasTimePreference ? String(time_preference || "").trim() : undefined
     const cleanSupportTypes = Array.isArray(support_types)
         ? support_types.map((supportType) => String(supportType || "").trim())
+        : undefined
+    const cleanStressTriggers = Array.isArray(stress_triggers)
+        ? stress_triggers
+            .map((trigger) => String(trigger || "").trim())
+            .filter((trigger) => VALID_TRIGGERS.includes(trigger))
         : undefined
 
     if (cleanMood !== undefined && !VALID_MOODS.includes(cleanMood)) {
@@ -455,6 +477,7 @@ export const UpdateSetup = async (req: Request, res: Response) => {
 
         const updatedData = {
             ...setupForPlan,
+            ...(hasStressTriggers && cleanStressTriggers ? { stress_triggers: cleanStressTriggers } : {}),
             plan,
             updated_at: new Date().toISOString(),
         }

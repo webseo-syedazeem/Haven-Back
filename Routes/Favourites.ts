@@ -56,7 +56,7 @@ FavouritesRoutes.post("/favourites", AuthMiddleware, AddFavourite)
 /**
  * @swagger
  * /api/favourites/{id}:
- *   delete:
+ *   put:
  *     tags:
  *       - Favourites
  *     summary: Remove a favourite for current authenticated user
@@ -80,7 +80,7 @@ FavouritesRoutes.post("/favourites", AuthMiddleware, AddFavourite)
  *       '500':
  *         description: Server error
  */
-FavouritesRoutes.delete("/favourites/:id", AuthMiddleware, RemoveFavourite)
+FavouritesRoutes.put("/favourites/:id", AuthMiddleware, RemoveFavourite)
 
 /**
  * @swagger

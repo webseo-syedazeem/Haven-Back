@@ -23,7 +23,11 @@ import ProgressRoutes from "./Routes/Progress.ts"
 import SubscriptionRoutes from "./Routes/Subscription.ts"
 
 const app = express()
-const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000").split(",")
+const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+const allowAllOrigins = allowedOrigins.includes("*")
 const soundscapesPath = path.join(process.cwd(), "public", "soundscapes")
 
 // Spotify-Grade Performance: Optimized chunk size (128KB) for faster initial mobile buffering over cellular networks
@@ -59,11 +63,12 @@ const authLimiter = rateLimit({
 app.use(
     cors({
         origin: (origin, callback) => {
-            if (!origin || allowedOrigins.includes(origin)) {
+            if (!origin || origin === "null" || allowAllOrigins || allowedOrigins.includes(origin)) {
                 return callback(null, true)
             }
             return callback(new Error("Not allowed by CORS"))
         },
+        credentials: true,
     })
 )
 app.use("/api/subscription/webhook", express.raw({ type: "application/json" }))

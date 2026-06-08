@@ -13,7 +13,7 @@
     "rootDir": ".",
     "resolveJsonModule": true,
     "isolatedModules": true,
-  
+    "noEmitOnError": true
   },
   "include": ["server.ts", "Config/**/*.ts", "Controller/**/*.ts", "Routes/**/*.ts"],
   "exclude": ["node_modules", "dist"]

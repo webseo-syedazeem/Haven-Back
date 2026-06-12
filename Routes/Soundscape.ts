@@ -60,7 +60,7 @@ SoundscapeRoutes.get("/soundscapes", GetAllSoundscapes)
  *               soundscape_ids:
  *                 type: array
  *                 minItems: 2
- *                 maxItems: 5
+ *                 maxItems: 6
  *                 items:
  *                   type: string
  *                   format: uuid
@@ -159,7 +159,7 @@ SoundscapeRoutes.get("/soundscapes/mix/:id", AuthMiddleware, GetOneMix)
  *               soundscape_ids:
  *                 type: array
  *                 minItems: 2
- *                 maxItems: 5
+ *                 maxItems: 6
  *                 items:
  *                   type: string
  *                   format: uuid

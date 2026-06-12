@@ -56,8 +56,8 @@ const validateSoundscapeIds = (soundscapeIds: string[] | null) => {
         return "soundscape_ids must be an array of UUIDs"
     }
 
-    if (soundscapeIds.length < 2 || soundscapeIds.length > 5) {
-        return "soundscape_ids must have 2-5 items"
+    if (soundscapeIds.length < 2 || soundscapeIds.length > 6) {
+        return "soundscape_ids must have 2-6 items"
     }
 
     if (new Set(soundscapeIds).size !== soundscapeIds.length) {

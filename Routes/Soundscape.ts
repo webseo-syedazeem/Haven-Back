@@ -8,6 +8,8 @@ import {
     GetOneSoundscape,
     GetSoundscapesByCategory,
     GetUserMixes,
+    RecordMixPlay,
+    ToggleMixFavorite,
     UpdateMix,
 } from "../Controller/Soundscape.ts"
 
@@ -210,6 +212,75 @@ SoundscapeRoutes.put("/soundscapes/mix/:id", AuthMiddleware, UpdateMix)
  *         description: Server error
  */
 SoundscapeRoutes.delete("/soundscapes/mix/:id", AuthMiddleware, DeleteMix)
+
+/**
+ * @swagger
+ * /api/soundscapes/mix/{id}/favorite:
+ *   put:
+ *     tags:
+ *       - Soundscapes
+ *     summary: Favorite or unfavorite a saved soundscape mix
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - is_favorite
+ *             properties:
+ *               is_favorite:
+ *                 type: boolean
+ *     responses:
+ *       '200':
+ *         description: Soundscape mix favorite updated successfully
+ *       '400':
+ *         description: Missing is_favorite
+ *       '401':
+ *         description: Invalid or missing session
+ *       '404':
+ *         description: Soundscape mix not found
+ *       '500':
+ *         description: Server error
+ */
+SoundscapeRoutes.put("/soundscapes/mix/:id/favorite", AuthMiddleware, ToggleMixFavorite)
+
+/**
+ * @swagger
+ * /api/soundscapes/mix/{id}/play:
+ *   patch:
+ *     tags:
+ *       - Soundscapes
+ *     summary: Record that the user played a saved soundscape mix
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       '200':
+ *         description: Soundscape mix play recorded successfully
+ *       '401':
+ *         description: Invalid or missing session
+ *       '404':
+ *         description: Soundscape mix not found
+ *       '500':
+ *         description: Server error
+ */
+SoundscapeRoutes.patch("/soundscapes/mix/:id/play", AuthMiddleware, RecordMixPlay)
 
 /**
  * @swagger

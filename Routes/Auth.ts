@@ -9,8 +9,10 @@ import {
     ResetPassword,
     ChangePassword,
     UpdateName,
+    RemoveProfileImage,
     Logout,
     DeleteAccount,
+    CheckSession,
     GetCurrentUser,
 } from "../Controller/Auth.ts"
 import { ProfileImageUploadMiddleware, UploadProfileImage } from "../Controller/UploadProfileImage.ts"
@@ -339,6 +341,25 @@ AuthRoutes.post("/upload-profile-image", AuthMiddleware, ProfileImageUploadMiddl
 
 /**
  * @swagger
+ * /api/remove-profile-image:
+ *   delete:
+ *     tags:
+ *       - Auth
+ *     summary: Remove the profile image for the current authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: Profile image removed successfully
+ *       '401':
+ *         description: Invalid or missing session
+ *       '500':
+ *         description: Server error
+ */
+AuthRoutes.delete("/remove-profile-image", AuthMiddleware, RemoveProfileImage)
+
+/**
+ * @swagger
  * /api/logout:
  *   post:
  *     tags:
@@ -400,6 +421,41 @@ AuthRoutes.post("/logout", AuthMiddleware, Logout)
  *         description: Failed to delete account
  */
 AuthRoutes.delete("/delete-account", AuthMiddleware, DeleteAccount)
+
+/**
+ * @swagger
+ * /api/check-session:
+ *   get:
+ *     tags:
+ *       - Auth
+ *     summary: Check if current session/token is valid
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: Session is valid
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     valid:
+ *                       type: boolean
+ *                     user:
+ *                       type: object
+ *                     profile:
+ *                       type: object
+ *       '401':
+ *         description: Invalid or expired session
+ *       '500':
+ *         description: Server error
+ */
+AuthRoutes.get("/check-session", AuthMiddleware, CheckSession)
 
 /**
  * @swagger

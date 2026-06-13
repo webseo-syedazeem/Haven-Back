@@ -292,9 +292,12 @@ export const UpdateName = async (req: Request, res: Response) => {
 
         const { data: updatedAuthUser, error: authError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
             user_metadata: {
-                full_name: fullName,
                 first_name: cleanFirstName,
                 last_name: cleanLastName,
+                full_name: fullName,
+                display_name: fullName,
+                username: fullName,
+                name: fullName,
             },
         })
 
@@ -306,6 +309,32 @@ export const UpdateName = async (req: Request, res: Response) => {
         return res.status(200).json({ success: true, data: { user: updatedAuthUser.user, profile: updatedProfile } })
     } catch (err) {
         console.error("Error updating name:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
+export const RemoveProfileImage = async (req: Request, res: Response) => {
+    try {
+        const user = req.user!
+
+        const { data: updatedProfile, error } = await supabaseAdmin
+            .from("users")
+            .update({
+                profile_image_url: null,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("auth_user_id", user.id)
+            .select("id, auth_user_id, name, email, profile_image_url, is_verified, last_sign_in_at, created_at, updated_at")
+            .single()
+
+        if (error || !updatedProfile) {
+            console.error("Remove profile image error:", error)
+            return res.status(500).json({ success: false, error: "Failed to remove profile image" })
+        }
+
+        return res.status(200).json({ success: true, data: { profile: updatedProfile } })
+    } catch (err) {
+        console.error("Error removing profile image:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
 }
@@ -360,6 +389,34 @@ export const DeleteAccount = async (req: Request, res: Response) => {
         })
     } catch (err) {
         console.error("Error deleting account:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
+export const CheckSession = async (req: Request, res: Response) => {
+    try {
+        const user = req.user!
+
+        const { data: userProfile, error: profileError } = await supabaseAdmin
+            .from("users")
+            .select("*")
+            .eq("auth_user_id", user.id)
+            .maybeSingle()
+
+        if (profileError || !userProfile) {
+            return res.status(401).json({ success: false, error: "User profile not found" })
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                valid: true,
+                user,
+                profile: userProfile,
+            },
+        })
+    } catch (err) {
+        console.error("Check session error:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
 }

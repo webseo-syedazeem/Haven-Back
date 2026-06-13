@@ -16,6 +16,8 @@ type SoundscapeMix = {
     name: string
     soundscape_ids: string[] | null
     volumes: Record<string, unknown> | null
+    is_favorite?: boolean
+    last_played_at?: string | null
     created_at: string
     updated_at: string
     [key: string]: unknown
@@ -372,6 +374,10 @@ export const UpdateMix = async (req: Request, res: Response) => {
         updateFields.volumes = volumes
     }
 
+    if (req.body?.is_favorite !== undefined) {
+        updateFields.is_favorite = Boolean(req.body.is_favorite)
+    }
+
     if (Object.keys(updateFields).length === 1) {
         return res.status(400).json({ success: false, error: "At least one field is required to update" })
     }
@@ -466,6 +472,95 @@ export const DeleteMix = async (req: Request, res: Response) => {
         return res.status(200).json({ success: true, data: { message: "Soundscape mix deleted successfully" } })
     } catch (err) {
         console.error("Error deleting soundscape mix:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
+export const ToggleMixFavorite = async (req: Request, res: Response) => {
+    const { id } = req.params
+    const mixId = String(id)
+    const { is_favorite } = req.body || {}
+
+    if (is_favorite === undefined) {
+        return res.status(400).json({ success: false, error: "is_favorite is required" })
+    }
+
+    try {
+        const user = req.user!
+        const userProfile = await getUserProfile(user.id, "Toggle soundscape mix favorite")
+
+        if (!userProfile) {
+            return res.status(401).json({ success: false, error: "User profile not found" })
+        }
+
+        const { data: updatedMix, error: updateMixError } = await supabaseAdmin
+            .from("user_soundscape_mixes")
+            .update({
+                is_favorite: Boolean(is_favorite),
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", mixId)
+            .eq("user_id", userProfile.id)
+            .select("*")
+            .maybeSingle()
+
+        if (updateMixError) {
+            console.error("Toggle soundscape mix favorite error:", updateMixError)
+            return res.status(500).json({ success: false, error: "Failed to update soundscape mix favorite" })
+        }
+
+        if (!updatedMix) {
+            return res.status(404).json({ success: false, error: "Soundscape mix not found" })
+        }
+
+        const [populatedMix] = await populateMixSoundscapes([updatedMix as SoundscapeMix])
+
+        return res.status(200).json({ success: true, data: { mix: populatedMix } })
+    } catch (err) {
+        console.error("Error toggling soundscape mix favorite:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
+export const RecordMixPlay = async (req: Request, res: Response) => {
+    const { id } = req.params
+    const mixId = String(id)
+
+    try {
+        const user = req.user!
+        const userProfile = await getUserProfile(user.id, "Record soundscape mix play")
+
+        if (!userProfile) {
+            return res.status(401).json({ success: false, error: "User profile not found" })
+        }
+
+        const now = new Date().toISOString()
+
+        const { data: updatedMix, error: updateMixError } = await supabaseAdmin
+            .from("user_soundscape_mixes")
+            .update({
+                last_played_at: now,
+                updated_at: now,
+            })
+            .eq("id", mixId)
+            .eq("user_id", userProfile.id)
+            .select("*")
+            .maybeSingle()
+
+        if (updateMixError) {
+            console.error("Record soundscape mix play error:", updateMixError)
+            return res.status(500).json({ success: false, error: "Failed to record soundscape mix play" })
+        }
+
+        if (!updatedMix) {
+            return res.status(404).json({ success: false, error: "Soundscape mix not found" })
+        }
+
+        const [populatedMix] = await populateMixSoundscapes([updatedMix as SoundscapeMix])
+
+        return res.status(200).json({ success: true, data: { mix: populatedMix } })
+    } catch (err) {
+        console.error("Error recording soundscape mix play:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
 }

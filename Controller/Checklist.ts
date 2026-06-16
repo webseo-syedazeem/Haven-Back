@@ -1,228 +1,63 @@
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 
-const VALID_TASKS = [
-    "Morning Sunlight",
-    "Breathwork",
-    "Movement",
-    "Hydration",
-    "Deep Work",
-    "Wind-down",
+// ─── Fixed 6 tasks — hardcoded per brief ────────────────────────────────────
+
+const ALL_TASKS = [
+    {
+        name: "Morning Sunlight",
+        description: "Morning light helps regulate cortisol rhythm and support better sleep later",
+        duration: "10 min",
+        icon: "sun",
+    },
+    {
+        name: "Breathwork",
+        description: "Boost mood and regulate your nervous system",
+        duration: "20 min",
+        icon: "breath",
+    },
+    {
+        name: "Movement",
+        description: "Boost mood and regulate your body",
+        duration: "5 min",
+        icon: "movement",
+    },
+    {
+        name: "Hydration",
+        description: "Boost mood and regulate your body",
+        duration: "2 glasses",
+        icon: "drop",
+    },
+    {
+        name: "Deep Work",
+        description: "Focused work session to build momentum",
+        duration: "3 tasks",
+        icon: "focus",
+    },
+    {
+        name: "Wind-down",
+        description: "Reduce screen time and prepare your mind for rest",
+        duration: "30 min",
+        icon: "moon",
+    },
 ]
 
-const getTodayDate = () => {
-    return new Date().toISOString().slice(0, 10)
+const VALID_TASK_NAMES = ALL_TASKS.map((t) => t.name)
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const getTodayDate = () => new Date().toISOString().slice(0, 10)
+
+const buildTaskList = (completedTasks: string[]) => {
+    return ALL_TASKS.map((task) => ({
+        ...task,
+        completed: completedTasks.includes(task.name),
+    }))
 }
 
-const validateCompletedTasks = (completedTasks: unknown) => {
-    if (!Array.isArray(completedTasks)) {
-        return { valid: false, error: "completed_tasks must be an array" }
-    }
-
-    for (const task of completedTasks) {
-        if (!VALID_TASKS.includes(String(task))) {
-            return { valid: false, error: `Invalid task: ${String(task)}` }
-        }
-    }
-
-    return { valid: true, tasks: completedTasks.map((task) => String(task)) }
-}
-
-export const SaveChecklist = async (req: Request, res: Response) => {
-    const { completed_tasks } = req.body || {}
-    const today = getTodayDate()
-
-    const validation = validateCompletedTasks(completed_tasks)
-
-    if (!validation.valid) {
-        return res.status(400).json({ success: false, error: validation.error })
-    }
-
-    try {
-        const user = req.user!
-
-        const { data: userProfile, error: profileError } = await supabaseAdmin
-            .from("users")
-            .select("id")
-            .eq("auth_user_id", user.id)
-            .single()
-
-        if (profileError || !userProfile) {
-            console.error("Save checklist profile error:", profileError)
-            return res.status(401).json({ success: false, error: "User profile not found" })
-        }
-
-        const { data: existingChecklist, error: existingChecklistError } = await supabaseAdmin
-            .from("user_checklists")
-            .select("id")
-            .eq("user_id", userProfile.id)
-            .eq("date", today)
-            .maybeSingle()
-
-        if (existingChecklistError) {
-            console.error("Check existing checklist error:", existingChecklistError)
-            return res.status(500).json({ success: false, error: "Failed to check existing checklist" })
-        }
-
-        if (existingChecklist) {
-            return res.status(400).json({
-                success: false,
-                error: "Checklist already submitted for today. You can update it using PUT.",
-            })
-        }
-
-        const completedTasks = validation.tasks || []
-        const percentage = (completedTasks.length / VALID_TASKS.length) * 100
-
-        const { data: savedChecklist, error: checklistError } = await supabaseAdmin
-            .from("user_checklists")
-            .insert({
-                user_id: userProfile.id,
-                completed_tasks: completedTasks,
-                percentage,
-                is_active: true,
-                date: today,
-            })
-            .select("*")
-            .single()
-
-        if (checklistError) {
-            console.error("Save checklist error:", checklistError)
-            return res.status(500).json({ success: false, error: "Failed to save checklist" })
-        }
-
-        return res.status(200).json({ success: true, data: { checklist: savedChecklist } })
-    } catch (err) {
-        console.error("Error saving checklist:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
-    }
-}
-
-export const UpdateChecklist = async (req: Request, res: Response) => {
-    const { completed_tasks } = req.body || {}
-    const { id } = req.params
-    const checklistId = String(id)
-
-    const validation = validateCompletedTasks(completed_tasks)
-
-    if (!validation.valid) {
-        return res.status(400).json({ success: false, error: validation.error })
-    }
-
-    try {
-        const user = req.user!
-
-        const { data: userProfile, error: profileError } = await supabaseAdmin
-            .from("users")
-            .select("id")
-            .eq("auth_user_id", user.id)
-            .single()
-
-        if (profileError || !userProfile) {
-            console.error("Update checklist profile error:", profileError)
-            return res.status(401).json({ success: false, error: "User profile not found" })
-        }
-
-        const { data: existingChecklist, error: existingChecklistError } = await supabaseAdmin
-            .from("user_checklists")
-            .select("*")
-            .eq("id", checklistId)
-            .eq("user_id", userProfile.id)
-            .maybeSingle()
-
-        if (existingChecklistError) {
-            console.error("Get checklist for update error:", existingChecklistError)
-            return res.status(500).json({ success: false, error: "Failed to get checklist" })
-        }
-
-        if (!existingChecklist) {
-            return res.status(404).json({ success: false, error: "Checklist not found" })
-        }
-
-        if (existingChecklist.is_active === false) {
-            return res.status(400).json({
-                success: false,
-                error: "This checklist is no longer active. You can only update today's checklist.",
-            })
-        }
-
-        const completedTasks = validation.tasks || []
-        const percentage = (completedTasks.length / VALID_TASKS.length) * 100
-
-        const { data: updatedChecklist, error: updateChecklistError } = await supabaseAdmin
-            .from("user_checklists")
-            .update({
-                completed_tasks: completedTasks,
-                percentage,
-                updated_at: new Date().toISOString(),
-            })
-            .eq("id", checklistId)
-            .eq("user_id", userProfile.id)
-            .select("*")
-            .maybeSingle()
-
-        if (updateChecklistError) {
-            console.error("Update checklist error:", updateChecklistError)
-            return res.status(500).json({ success: false, error: "Failed to update checklist" })
-        }
-
-        if (!updatedChecklist) {
-            return res.status(404).json({ success: false, error: "Checklist not found" })
-        }
-
-        return res.status(200).json({ success: true, data: { checklist: updatedChecklist } })
-    } catch (err) {
-        console.error("Error updating checklist:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
-    }
-}
-
-export const GetAllChecklists = async (req: Request, res: Response) => {
-    const today = getTodayDate()
-
-    try {
-        const user = req.user!
-
-        const { data: userProfile, error: profileError } = await supabaseAdmin
-            .from("users")
-            .select("id")
-            .eq("auth_user_id", user.id)
-            .single()
-
-        if (profileError || !userProfile) {
-            console.error("Get checklists profile error:", profileError)
-            return res.status(401).json({ success: false, error: "User profile not found" })
-        }
-
-        const { error: deactivateError } = await supabaseAdmin
-            .from("user_checklists")
-            .update({ is_active: false, updated_at: new Date().toISOString() })
-            .eq("user_id", userProfile.id)
-            .lt("date", today)
-            .eq("is_active", true)
-
-        if (deactivateError) {
-            console.error("Deactivate old checklists error:", deactivateError)
-            return res.status(500).json({ success: false, error: "Failed to update checklist status" })
-        }
-
-        const { data: checklists, error: checklistsError } = await supabaseAdmin
-            .from("user_checklists")
-            .select("*")
-            .eq("user_id", userProfile.id)
-            .order("date", { ascending: false })
-
-        if (checklistsError) {
-            console.error("Get checklists error:", checklistsError)
-            return res.status(500).json({ success: false, error: "Failed to get checklists" })
-        }
-
-        return res.status(200).json({ success: true, data: { checklists: checklists || [] } })
-    } catch (err) {
-        console.error("Error getting checklists:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
-    }
-}
+// ─── GET /api/checklist/today ─────────────────────────────────────────────────
+// Returns all 6 fixed tasks with completed true/false
+// If no row exists yet for today → all tasks are uncompleted
 
 export const GetTodayChecklist = async (req: Request, res: Response) => {
     const today = getTodayDate()
@@ -237,21 +72,16 @@ export const GetTodayChecklist = async (req: Request, res: Response) => {
             .single()
 
         if (profileError || !userProfile) {
-            console.error("Get today checklist profile error:", profileError)
             return res.status(401).json({ success: false, error: "User profile not found" })
         }
 
-        const { error: deactivateError } = await supabaseAdmin
+        // deactivate old rows
+        await supabaseAdmin
             .from("user_checklists")
             .update({ is_active: false, updated_at: new Date().toISOString() })
             .eq("user_id", userProfile.id)
             .lt("date", today)
             .eq("is_active", true)
-
-        if (deactivateError) {
-            console.error("Deactivate old checklists error:", deactivateError)
-            return res.status(500).json({ success: false, error: "Failed to update checklist status" })
-        }
 
         const { data: checklist, error: checklistError } = await supabaseAdmin
             .from("user_checklists")
@@ -261,13 +91,203 @@ export const GetTodayChecklist = async (req: Request, res: Response) => {
             .maybeSingle()
 
         if (checklistError) {
-            console.error("Get today checklist error:", checklistError)
             return res.status(500).json({ success: false, error: "Failed to get today checklist" })
         }
 
-        return res.status(200).json({ success: true, data: { checklist: checklist || null } })
+        const completedTasks: string[] = checklist?.completed_tasks ?? []
+        const tasks = buildTaskList(completedTasks)
+        const completedCount = completedTasks.length
+        const percentage = Math.round((completedCount / VALID_TASK_NAMES.length) * 100)
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                checklist_id: checklist?.id ?? null,
+                date: today,
+                tasks,
+                completed_count: completedCount,
+                total: VALID_TASK_NAMES.length,
+                percentage,
+            },
+        })
     } catch (err) {
         console.error("Error getting today checklist:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
+// ─── PATCH /api/checklist/task ────────────────────────────────────────────────
+// User taps one task → toggle completed true/false
+// Auto-creates today's row if it doesn't exist yet
+
+export const ToggleTask = async (req: Request, res: Response) => {
+    const { task, completed } = req.body || {}
+    const today = getTodayDate()
+
+    const cleanTask = String(task || "").trim()
+
+    if (!VALID_TASK_NAMES.includes(cleanTask)) {
+        return res.status(400).json({
+            success: false,
+            error: `Invalid task. Valid tasks: ${VALID_TASK_NAMES.join(", ")}`,
+        })
+    }
+
+    if (typeof completed !== "boolean") {
+        return res.status(400).json({
+            success: false,
+            error: "completed must be a boolean (true or false)",
+        })
+    }
+
+    try {
+        const user = req.user!
+
+        const { data: userProfile, error: profileError } = await supabaseAdmin
+            .from("users")
+            .select("id")
+            .eq("auth_user_id", user.id)
+            .single()
+
+        if (profileError || !userProfile) {
+            return res.status(401).json({ success: false, error: "User profile not found" })
+        }
+
+        // get or create today's checklist row
+        let { data: checklist, error: fetchError } = await supabaseAdmin
+            .from("user_checklists")
+            .select("*")
+            .eq("user_id", userProfile.id)
+            .eq("date", today)
+            .maybeSingle()
+
+        if (fetchError) {
+            return res.status(500).json({ success: false, error: "Failed to fetch checklist" })
+        }
+
+        let currentCompleted: string[] = checklist?.completed_tasks ?? []
+
+        // toggle the task
+        if (completed) {
+            // add if not already in list
+            if (!currentCompleted.includes(cleanTask)) {
+                currentCompleted = [...currentCompleted, cleanTask]
+            }
+        } else {
+            // remove from list
+            currentCompleted = currentCompleted.filter((t) => t !== cleanTask)
+        }
+
+        const percentage = Math.round((currentCompleted.length / VALID_TASK_NAMES.length) * 100)
+
+        if (!checklist) {
+            // create new row for today
+            const { data: newChecklist, error: insertError } = await supabaseAdmin
+                .from("user_checklists")
+                .insert({
+                    user_id: userProfile.id,
+                    completed_tasks: currentCompleted,
+                    percentage,
+                    is_active: true,
+                    date: today,
+                })
+                .select("*")
+                .single()
+
+            if (insertError) {
+                return res.status(500).json({ success: false, error: "Failed to create checklist" })
+            }
+
+            checklist = newChecklist
+        } else {
+            // update existing row
+            const { data: updatedChecklist, error: updateError } = await supabaseAdmin
+                .from("user_checklists")
+                .update({
+                    completed_tasks: currentCompleted,
+                    percentage,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", checklist.id)
+                .eq("user_id", userProfile.id)
+                .select("*")
+                .single()
+
+            if (updateError) {
+                return res.status(500).json({ success: false, error: "Failed to update checklist" })
+            }
+
+            checklist = updatedChecklist
+        }
+
+        const tasks = buildTaskList(currentCompleted)
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                checklist_id: checklist.id,
+                date: today,
+                tasks,
+                completed_count: currentCompleted.length,
+                total: VALID_TASK_NAMES.length,
+                percentage,
+            },
+        })
+    } catch (err) {
+        console.error("Error toggling task:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
+// ─── GET /api/checklist ───────────────────────────────────────────────────────
+// History — all past checklists with task breakdown
+
+export const GetAllChecklists = async (req: Request, res: Response) => {
+    const today = getTodayDate()
+
+    try {
+        const user = req.user!
+
+        const { data: userProfile, error: profileError } = await supabaseAdmin
+            .from("users")
+            .select("id")
+            .eq("auth_user_id", user.id)
+            .single()
+
+        if (profileError || !userProfile) {
+            return res.status(401).json({ success: false, error: "User profile not found" })
+        }
+
+        await supabaseAdmin
+            .from("user_checklists")
+            .update({ is_active: false, updated_at: new Date().toISOString() })
+            .eq("user_id", userProfile.id)
+            .lt("date", today)
+            .eq("is_active", true)
+
+        const { data: checklists, error: checklistsError } = await supabaseAdmin
+            .from("user_checklists")
+            .select("*")
+            .eq("user_id", userProfile.id)
+            .order("date", { ascending: false })
+
+        if (checklistsError) {
+            return res.status(500).json({ success: false, error: "Failed to get checklists" })
+        }
+
+        const formatted = (checklists || []).map((c) => ({
+            id: c.id,
+            date: c.date,
+            tasks: buildTaskList(c.completed_tasks ?? []),
+            completed_count: (c.completed_tasks ?? []).length,
+            total: VALID_TASK_NAMES.length,
+            percentage: c.percentage,
+            is_active: c.is_active,
+        }))
+
+        return res.status(200).json({ success: true, data: { checklists: formatted } })
+    } catch (err) {
+        console.error("Error getting checklists:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
 }

@@ -1,5 +1,5 @@
 import express from "express"
-import { SaveCheckin, GetCheckins } from "../Controller/Checkin.ts"
+import { SaveCheckin, UpdateCheckin, GetCheckins } from "../Controller/Checkin.ts"
 import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
 
 const CheckinRoutes = express.Router()
@@ -64,6 +64,7 @@ const CheckinRoutes = express.Router()
  *         description: Server error
  */
 CheckinRoutes.post("/checkin", AuthMiddleware, SaveCheckin)
+CheckinRoutes.put("/checkin", AuthMiddleware, UpdateCheckin)
 
 /**
  * @swagger

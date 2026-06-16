@@ -21,6 +21,7 @@ import NotificationsRoutes from "./Routes/Notifications.ts"
 import TrackRoutes from "./Routes/Track.ts"
 import ProgressRoutes from "./Routes/Progress.ts"
 import SubscriptionRoutes from "./Routes/Subscription.ts"
+import DailyEaseRoutes from "./Routes/DailyEase.ts"
 
 const app = express()
 const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000").split(",")
@@ -185,7 +186,7 @@ app.use("/api", NotificationsRoutes)
 app.use("/api", TrackRoutes)
 app.use("/api", ProgressRoutes)
 app.use("/api", SubscriptionRoutes)
-
+app.use("/api", DailyEaseRoutes)
 // Swagger Config
 const options = {
     definition: {

@@ -49,7 +49,7 @@ export const GetProgress = async (req: Request, res: Response) => {
         ] = await Promise.all([
             supabaseAdmin
                 .from("daily_checkins")
-                .select("stress_level, helpful_today, daily_ease, created_at")
+                .select("stress_level, helpful_today, created_at")
                 .eq("user_id", userProfile.id)
                 .gte("created_at", thirtyDaysAgo),
             supabaseAdmin
@@ -133,6 +133,11 @@ export const GetProgress = async (req: Request, res: Response) => {
             checklistByDate.set(getDateKey(checklist.date), checklist)
         })
 
+        const breathingDates = new Set<string>()
+        breathingSessions.forEach((session) => {
+            breathingDates.add(getDateKey(session.created_at))
+        })
+
         const breathworkStress: number[] = []
         const noBreathworkStress: number[] = []
         const sleepStress = new Map<string, number[]>()
@@ -199,11 +204,18 @@ export const GetProgress = async (req: Request, res: Response) => {
         }))
 
         const dailyEaseTrend = checkins
-            .map((checkin) => ({
-                date: getDateKey(checkin.created_at),
-                daily_ease: numberValue(checkin.daily_ease) || 0,
-                stress_level: numberValue(checkin.stress_level) || 0,
-            }))
+            .map((checkin) => {
+                const date = getDateKey(checkin.created_at)
+                const checklist = checklistByDate.get(date)
+                const tasksScore = numberValue(checklist?.percentage) ?? 0
+                const breathworkScore = breathingDates.has(date) ? 100 : 0
+                const trendEase = Math.round((tasksScore * 0.40) + (breathworkScore * 0.60))
+                return {
+                    date,
+                    daily_ease: trendEase,
+                    stress_level: numberValue(checkin.stress_level) || 0,
+                }
+            })
             .sort((a, b) => a.date.localeCompare(b.date))
             .slice(-14)
 

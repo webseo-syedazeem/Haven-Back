@@ -3,10 +3,10 @@ import { supabaseAdmin } from "../Config/Dbconnection.ts"
 
 const VALID_SLEEP_QUALITY = [
     "Restful",
-    "Light Sleep",
-    "Waking Often",
-    "Hard to Fall Asleep",
-    "Very Tired",
+    "Light sleep",
+    "Waking often",
+    "Hard to fall asleep",
+    "Very tired",
 ]
 
 const getTodayDate = () => {

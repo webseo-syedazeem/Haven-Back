@@ -4,6 +4,7 @@ import {
     SignUp,
     SignIn,
     GoogleSignIn,
+    SyncGoogleProfile,
     RefreshToken,
     ForgotPassword,
     ResetPassword,
@@ -124,6 +125,7 @@ AuthRoutes.post("/signin", SignIn)
  *         description: Server error
  */
 AuthRoutes.post("/auth/google", GoogleSignIn)
+AuthRoutes.post("/auth/sync-profile", AuthMiddleware, SyncGoogleProfile)
 
 /**
  * @swagger

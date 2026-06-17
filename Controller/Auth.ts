@@ -80,6 +80,51 @@ export const SignIn = async (req: Request, res: Response) => {
     }
 }
 
+export const SyncGoogleProfile = async (req: Request, res: Response) => {
+    try {
+        const user = req.user!
+
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.getUserById(user.id)
+
+        if (authError || !authData.user) {
+            return res.status(404).json({ success: false, error: "Auth user not found" })
+        }
+
+        const authUser = authData.user
+        const metadata = authUser.user_metadata || {}
+        const email = authUser.email || ""
+        const name = String(metadata.full_name || metadata.name || email.split("@")[0])
+        const profileImageUrl: string | null = metadata.avatar_url || metadata.picture || null
+
+        const { data: profile, error: profileError } = await supabaseAdmin
+            .from("users")
+            .upsert(
+                {
+                    auth_user_id: authUser.id,
+                    email,
+                    name,
+                    is_verified: true,
+                    profile_image_url: profileImageUrl,
+                    last_sign_in_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                },
+                { onConflict: "auth_user_id" }
+            )
+            .select("*")
+            .single()
+
+        if (profileError) {
+            console.error("Sync Google profile error:", profileError)
+            return res.status(500).json({ success: false, error: "Failed to sync profile" })
+        }
+
+        return res.status(200).json({ success: true, data: { profile } })
+    } catch (err) {
+        console.error("Error syncing Google profile:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
 export const GoogleSignIn = async (req: Request, res: Response) => {
     const { id_token } = req.body || {}
 

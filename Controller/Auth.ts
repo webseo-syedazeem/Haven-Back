@@ -205,7 +205,7 @@ export const RefreshToken = async (req: Request, res: Response) => {
         })
 
         if (error) {
-            console.error("Supabase refresh token error:", error)
+           console.log("Refresh token already used. User needs to login again.");
             return res.status(401).json({ success: false, error: error.message || "Invalid refresh token" })
         }
 

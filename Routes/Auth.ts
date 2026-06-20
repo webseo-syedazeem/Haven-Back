@@ -125,6 +125,40 @@ AuthRoutes.post("/signin", SignIn)
  *         description: Server error
  */
 AuthRoutes.post("/auth/google", GoogleSignIn)
+
+/**
+ * @swagger
+ * /api/auth/sync-profile:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Sync authenticated Google profile
+ *     description: Creates or updates the local user profile from the authenticated Supabase Google user's metadata.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: Google profile synced successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     profile:
+ *                       type: object
+ *       '401':
+ *         description: Invalid or missing session
+ *       '404':
+ *         description: Auth user not found
+ *       '500':
+ *         description: Server error
+ */
 AuthRoutes.post("/auth/sync-profile", AuthMiddleware, SyncGoogleProfile)
 
 /**

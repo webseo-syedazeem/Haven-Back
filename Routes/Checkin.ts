@@ -64,6 +64,62 @@ const CheckinRoutes = express.Router()
  *         description: Server error
  */
 CheckinRoutes.post("/checkin", AuthMiddleware, SaveCheckin)
+
+/**
+ * @swagger
+ * /api/checkin:
+ *   put:
+ *     tags:
+ *       - Checkin
+ *     summary: Update today's daily check-in
+ *     description: Updates the authenticated user's existing check-in for today and recalculates Daily Ease.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               stress_level:
+ *                 type: integer
+ *                 minimum: 0
+ *                 maximum: 10
+ *                 example: 6
+ *               stress_factors:
+ *                 type: array
+ *                 minItems: 1
+ *                 items:
+ *                   type: string
+ *                   enum: [Work/study, Overthinking, Poor sleep, Social stress, Finances, Health]
+ *                 example: [Work/study, Overthinking]
+ *               helpful_today:
+ *                 type: array
+ *                 minItems: 1
+ *                 items:
+ *                   type: string
+ *                   enum: [Breathwork, Movements, Soundscape, meditation, Journaling, Rest]
+ *                 example: [Breathwork, Rest]
+ *               reflection:
+ *                 type: string
+ *                 example: I felt better after taking a short break.
+ *             required:
+ *               - stress_level
+ *               - stress_factors
+ *               - helpful_today
+ *     responses:
+ *       '200':
+ *         description: Daily check-in updated successfully
+ *       '400':
+ *         description: Missing or invalid check-in data
+ *       '401':
+ *         description: Invalid or missing session
+ *       '404':
+ *         description: No check-in found for today
+ *       '500':
+ *         description: Server error
+ */
 CheckinRoutes.put("/checkin", AuthMiddleware, UpdateCheckin)
 
 /**

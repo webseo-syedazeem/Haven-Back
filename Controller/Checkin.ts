@@ -1,5 +1,6 @@
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
+import { CalculateDailyEase, type DailyEaseResult } from "./DailyEase.ts"
 
 const VALID_STRESS_FACTORS = [
     "Work/study",
@@ -55,6 +56,24 @@ const getInsightMessage = (
         return "You are in a good place today. Carry this calm into tomorrow."
     }
     return "Every check-in helps Heaven understand your pattern better."
+}
+
+const persistDailyEaseForCheckin = async (checkinId: string, dailyEase: DailyEaseResult) => {
+    const { data: updatedCheckin, error } = await supabaseAdmin
+        .from("daily_checkins")
+        .update({
+            daily_ease: dailyEase.daily_ease.score,
+            daily_ease_label: dailyEase.daily_ease.label,
+        })
+        .eq("id", checkinId)
+        .select("*")
+        .single()
+
+    if (error) {
+        throw error
+    }
+
+    return updatedCheckin
 }
 
 export const SaveCheckin = async (req: Request, res: Response) => {
@@ -147,16 +166,27 @@ export const SaveCheckin = async (req: Request, res: Response) => {
             return res.status(500).json({ success: false, error: "Failed to save checkin" })
         }
 
+        // Calculate real Daily Ease after checkin is saved
+        let dailyEase: DailyEaseResult | null = null
+        let checkinWithDailyEase = checkin
+        try {
+            dailyEase = await CalculateDailyEase(userProfile.id, today)
+            checkinWithDailyEase = await persistDailyEaseForCheckin(checkin.id, dailyEase)
+        } catch (easeErr) {
+            console.error("Daily ease calculation/persist error (non-fatal):", easeErr)
+        }
+
         return res.status(200).json({
             success: true,
             data: {
-                checkin,
+                checkin: checkinWithDailyEase,
                 result: {
                     stress_today: {
                         score: stress_level,
                         label: stressLabel,
                     },
-                    insight: insightMessage,
+                    daily_ease: dailyEase?.daily_ease ?? null,
+                    insight: dailyEase?.insight ?? insightMessage,
                 },
             },
         })
@@ -259,16 +289,27 @@ export const UpdateCheckin = async (req: Request, res: Response) => {
             return res.status(500).json({ success: false, error: "Failed to update check-in" })
         }
 
+        // Calculate real Daily Ease after checkin is updated
+        let dailyEase: DailyEaseResult | null = null
+        let checkinWithDailyEase = updatedCheckin
+        try {
+            dailyEase = await CalculateDailyEase(userProfile.id, today)
+            checkinWithDailyEase = await persistDailyEaseForCheckin(updatedCheckin.id, dailyEase)
+        } catch (easeErr) {
+            console.error("Daily ease calculation/persist error (non-fatal):", easeErr)
+        }
+
         return res.status(200).json({
             success: true,
             data: {
-                checkin: updatedCheckin,
+                checkin: checkinWithDailyEase,
                 result: {
                     stress_today: {
                         score: stress_level,
                         label: stressLabel,
                     },
-                    insight: insightMessage,
+                    daily_ease: dailyEase?.daily_ease ?? null,
+                    insight: dailyEase?.insight ?? insightMessage,
                 },
             },
         })

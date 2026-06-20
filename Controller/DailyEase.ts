@@ -108,6 +108,26 @@ type Weights = {
     mood: number
 }
 
+export type DailyEaseResult = {
+    daily_ease: {
+        score: number
+        label: string
+    }
+    stress_today: {
+        score: number
+        label: string
+    } | null
+    insight: string
+    breakdown: {
+        sleep: { score: number; quality: string | null }
+        breathwork: { score: number; app_tracked: boolean }
+        soundscape: { score: number; app_tracked: boolean }
+        tasks: { score: number; completed: string[] }
+        mood: { score: number; checkins_today: number }
+    }
+    date: string
+}
+
 const getWeights = (goal: string): Weights => {
     switch (goal) {
         case "Sleep better":
@@ -166,6 +186,140 @@ const getInsightMessage = (
 
 // ─── main controller ─────────────────────────────────────────────────────────
 
+export const CalculateDailyEase = async (
+    userId: string,
+    today = getTodayDate(),
+): Promise<DailyEaseResult> => {
+    const { data: setup } = await supabaseAdmin
+        .from("user_setup")
+        .select("goal, support_types")
+        .eq("user_id", userId)
+        .maybeSingle()
+
+    const goal = String(setup?.goal ?? "")
+    const supportTypes: string[] = Array.isArray(setup?.support_types)
+        ? setup.support_types
+        : []
+
+    const [
+        breathingResult,
+        soundscapeResult,
+        checklistResult,
+        moodResult,
+        checkinResult,
+        trackResult,
+    ] = await Promise.all([
+        supabaseAdmin
+            .from("user_breathing_sessions")
+            .select("completed, completed_duration_seconds, total_duration_seconds")
+            .eq("user_id", userId)
+            .gte("created_at", `${today}T00:00:00.000Z`)
+            .lte("created_at", `${today}T23:59:59.999Z`),
+
+        supabaseAdmin
+            .from("user_soundscape_mixes")
+            .select("last_played_at")
+            .eq("user_id", userId),
+
+        supabaseAdmin
+            .from("user_checklists")
+            .select("percentage, completed_tasks")
+            .eq("user_id", userId)
+            .eq("date", today)
+            .maybeSingle(),
+
+        supabaseAdmin
+            .from("user_moods")
+            .select("created_at")
+            .eq("user_id", userId)
+            .gte("created_at", `${today}T00:00:00.000Z`)
+            .lte("created_at", `${today}T23:59:59.999Z`),
+
+        supabaseAdmin
+            .from("daily_checkins")
+            .select("stress_level, stress_label, helpful_today, insight_message")
+            .eq("user_id", userId)
+            .gte("created_at", `${today}T00:00:00.000Z`)
+            .lte("created_at", `${today}T23:59:59.999Z`)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+
+        supabaseAdmin
+            .from("user_tracks")
+            .select("sleep_quality")
+            .eq("user_id", userId)
+            .eq("date", today)
+            .maybeSingle(),
+    ])
+
+    const breathingSessions = breathingResult.data ?? []
+    const soundscapeMixes = soundscapeResult.data ?? []
+    const checklist = checklistResult.data ?? null
+    const moods = moodResult.data ?? []
+    const checkin = checkinResult.data ?? null
+    const helpfulToday: string[] = checkin?.helpful_today ?? []
+    const stressLevel: number | null = checkin?.stress_level ?? null
+
+    const sleepScore = scoreSleep(trackResult.data?.sleep_quality ?? null)
+
+    const rawBreathwork = scoreBreathwork(breathingSessions)
+    const breathworkScore =
+        rawBreathwork > 0
+            ? rawBreathwork
+            : supportTypes.includes("Breathwork")
+                ? scoreHelpfulToday(helpfulToday, "Breathwork")
+                : 0
+
+    const rawSoundscape = scoreSoundscape(soundscapeMixes)
+    const soundscapeScore =
+        rawSoundscape > 0
+            ? rawSoundscape
+            : supportTypes.includes("Soundscapes")
+                ? scoreHelpfulToday(helpfulToday, "Soundscape")
+                : 0
+
+    const taskScore = scoreChecklist(checklist)
+    const moodScore = scoreMood(moods)
+    const weights = getWeights(goal)
+
+    const dailyEaseScore = clamp(
+        sleepScore      * weights.sleep      +
+        soundscapeScore * weights.movement   +
+        breathworkScore * weights.breathwork +
+        taskScore       * weights.tasks      +
+        moodScore       * weights.mood,
+    )
+
+    const dailyEaseLabel = getDailyEaseLabel(dailyEaseScore)
+    const insight = getInsightMessage(dailyEaseScore, stressLevel, goal)
+
+    const breakdown = {
+        sleep:      { score: sleepScore,      quality: trackResult.data?.sleep_quality ?? null },
+        breathwork: { score: breathworkScore, app_tracked: rawBreathwork > 0 },
+        soundscape: { score: soundscapeScore, app_tracked: rawSoundscape > 0 },
+        tasks:      { score: taskScore,        completed: checklist?.completed_tasks ?? [] },
+        mood:       { score: moodScore,        checkins_today: moods.length },
+    }
+
+    const stressToday = checkin
+        ? {
+            score: checkin.stress_level,
+            label: checkin.stress_label,
+        }
+        : null
+
+    return {
+        daily_ease: {
+            score: dailyEaseScore,
+            label: dailyEaseLabel,
+        },
+        stress_today: stressToday,
+        insight,
+        breakdown,
+        date: today,
+    }
+}
 export const GetDailyEase = async (req: Request, res: Response) => {
     try {
         const user = req.user!
@@ -181,155 +335,11 @@ export const GetDailyEase = async (req: Request, res: Response) => {
             return res.status(401).json({ success: false, error: "User profile not found" })
         }
 
-        const userId = userProfile.id
-        const today = getTodayDate()
-
-        // 2. fetch user setup (for goal-based weights)
-        const { data: setup } = await supabaseAdmin
-            .from("user_setup")
-            .select("goal, support_types")
-            .eq("user_id", userId)
-            .maybeSingle()
-
-        const goal = String(setup?.goal ?? "")
-        const supportTypes: string[] = Array.isArray(setup?.support_types)
-            ? setup.support_types
-            : []
-
-        // 3. fetch all data sources in parallel
-        const [
-            breathingResult,
-            soundscapeResult,
-            checklistResult,
-            moodResult,
-            checkinResult,
-            trackResult,
-        ] = await Promise.all([
-            // breathing sessions created today
-            supabaseAdmin
-                .from("user_breathing_sessions")
-                .select("completed, completed_duration_seconds, total_duration_seconds")
-                .eq("user_id", userId)
-                .gte("created_at", `${today}T00:00:00.000Z`)
-                .lte("created_at", `${today}T23:59:59.999Z`),
-
-            // soundscape mixes (check last_played_at)
-            supabaseAdmin
-                .from("user_soundscape_mixes")
-                .select("last_played_at")
-                .eq("user_id", userId),
-
-            // today's checklist
-            supabaseAdmin
-                .from("user_checklists")
-                .select("percentage, completed_tasks")
-                .eq("user_id", userId)
-                .eq("date", today)
-                .maybeSingle(),
-
-            // moods (filter by today in scorer)
-            supabaseAdmin
-                .from("user_moods")
-                .select("created_at")
-                .eq("user_id", userId)
-                .gte("created_at", `${today}T00:00:00.000Z`)
-                .lte("created_at", `${today}T23:59:59.999Z`),
-
-            // today's nightly check-in (for stress + helpful_today)
-            supabaseAdmin
-                .from("daily_checkins")
-                .select("stress_level, stress_label, helpful_today, insight_message")
-                .eq("user_id", userId)
-                .gte("created_at", `${today}T00:00:00.000Z`)
-                .lte("created_at", `${today}T23:59:59.999Z`)
-                .order("created_at", { ascending: false })
-                .limit(1)
-                .maybeSingle(),
-
-            // today's sleep quality from user_tracks
-            supabaseAdmin
-                .from("user_tracks")
-                .select("sleep_quality")
-                .eq("user_id", userId)
-                .eq("date", today)
-                .maybeSingle(),
-        ])
-
-        // 4. extract data
-        const breathingSessions = breathingResult.data ?? []
-        const soundscapeMixes = soundscapeResult.data ?? []
-        const checklist = checklistResult.data ?? null
-        const moods = moodResult.data ?? []
-        const checkin = checkinResult.data ?? null
-        const helpfulToday: string[] = checkin?.helpful_today ?? []
-        const stressLevel: number | null = checkin?.stress_level ?? null
-
-        // 5. score each component
-        const sleepScore = scoreSleep(trackResult.data?.sleep_quality ?? null)
-
-        // app-tracked score first; fall back to self-reported if 0 and user listed it
-        const rawBreathwork = scoreBreathwork(breathingSessions)
-        const breathworkScore =
-            rawBreathwork > 0
-                ? rawBreathwork
-                : supportTypes.includes("Breathwork")
-                    ? scoreHelpfulToday(helpfulToday, "Breathwork")
-                    : 0
-
-        const rawSoundscape = scoreSoundscape(soundscapeMixes)
-        const soundscapeScore =
-            rawSoundscape > 0
-                ? rawSoundscape
-                : supportTypes.includes("Soundscapes")
-                    ? scoreHelpfulToday(helpfulToday, "Soundscape")
-                    : 0
-
-        const taskScore = scoreChecklist(checklist)
-        const moodScore = scoreMood(moods)
-
-        // 6. apply weights (soundscape is the movement proxy)
-        const weights = getWeights(goal)
-
-        const dailyEaseScore = clamp(
-            sleepScore      * weights.sleep      +
-            soundscapeScore * weights.movement   +
-            breathworkScore * weights.breathwork +
-            taskScore       * weights.tasks      +
-            moodScore       * weights.mood,
-        )
-
-        const dailyEaseLabel = getDailyEaseLabel(dailyEaseScore)
-        const insight = getInsightMessage(dailyEaseScore, stressLevel, goal)
-
-        // 7. build breakdown chips for home screen
-        const breakdown = {
-            sleep:      { score: sleepScore,      quality: trackResult.data?.sleep_quality ?? null },
-            breathwork: { score: breathworkScore, app_tracked: rawBreathwork > 0 },
-            soundscape: { score: soundscapeScore, app_tracked: rawSoundscape > 0 },
-            tasks:      { score: taskScore,        completed: checklist?.completed_tasks ?? [] },
-            mood:       { score: moodScore,        checkins_today: moods.length },
-        }
-
-        // 8. stress_today block (only if nightly check-in done)
-        const stressToday = checkin
-            ? {
-                score: checkin.stress_level,
-                label: checkin.stress_label,
-            }
-            : null
+        const dailyEase = await CalculateDailyEase(userProfile.id, getTodayDate())
 
         return res.status(200).json({
             success: true,
-            data: {
-                daily_ease: {
-                    score: dailyEaseScore,
-                    label: dailyEaseLabel,
-                },
-                stress_today: stressToday,
-                insight,
-                breakdown,
-                date: today,
-            },
+            data: dailyEase,
         })
     } catch (err) {
         console.error("Error getting daily ease:", err)

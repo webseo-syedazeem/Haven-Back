@@ -119,3 +119,28 @@ export const disconnectProvider = async (req: Request, res: Response) => {
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
 }
+
+export const deleteAllConnections = async (req: Request, res: Response) => {
+    const user = req.user
+
+    if (!user) {
+        return res.status(401).json({ success: false, error: "Invalid or missing session" })
+    }
+
+    try {
+        const { error } = await supabaseAdmin
+            .from("health_connections")
+            .delete()
+            .eq("user_id", user.id)
+
+        if (error) {
+            console.error("Delete all health connections error:", error)
+            return res.status(500).json({ success: false, error: "Failed to delete health data" })
+        }
+
+        return res.status(200).json({ success: true, data: { message: "All health data deleted" } })
+    } catch (err) {
+        console.error("Error deleting health data:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}

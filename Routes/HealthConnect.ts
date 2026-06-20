@@ -2,6 +2,7 @@
 import express from "express"
 import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
 import {
+    deleteAllConnections,
     disconnectProvider,
     getConnectionStatus,
     saveConnection,
@@ -158,5 +159,23 @@ HealthConnectRoutes.get("/health-connect/status/:userId", AuthMiddleware, getCon
  *         description: Server error
  */
 HealthConnectRoutes.delete("/health-connect/disconnect", AuthMiddleware, disconnectProvider)
+/**
+ * @swagger
+ * /api/health-connect/delete-all:
+ *   delete:
+ *     tags:
+ *       - HealthConnect
+ *     summary: Permanently delete all health connections for the authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: All health data deleted successfully
+ *       '401':
+ *         description: Invalid or missing session
+ *       '500':
+ *         description: Server error
+ */
+HealthConnectRoutes.delete("/health-connect/delete-all", AuthMiddleware, deleteAllConnections)
 
 export default HealthConnectRoutes

@@ -13,9 +13,9 @@ const VALID_STRESS_FACTORS = [
 
 const VALID_HELPFUL = [
     "Breathwork",
-    "Movements",
+    "Movement",
     "Soundscape",
-    "meditation",
+    "Meditation",
     "Journaling",
     "Rest",
 ]

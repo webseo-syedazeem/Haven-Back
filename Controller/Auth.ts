@@ -411,6 +411,52 @@ export const DeleteAccount = async (req: Request, res: Response) => {
     try {
         const user = req.user!
 
+        const { data: userProfile, error: profileLookupError } = await supabaseAdmin
+            .from("users")
+            .select("id")
+            .eq("auth_user_id", user.id)
+            .maybeSingle()
+
+        if (profileLookupError) {
+            console.error("Find user profile before delete error:", profileLookupError)
+            return res.status(500).json({ success: false, error: "Failed to find user profile" })
+        }
+
+        const deleteRows = async (table: string, column: string, value: string | number) => {
+            const { error } = await supabaseAdmin
+                .from(table)
+                .delete()
+                .eq(column, value)
+
+            if (error) {
+                console.error(`Delete ${table} error:`, error)
+                throw new Error(`Failed to delete ${table}`)
+            }
+        }
+
+        if (userProfile?.id) {
+            const appUserId = userProfile.id
+            const appUserTables = [
+                "user_breathing_sessions",
+                "daily_checkins",
+                "user_checklists",
+                "user_setup",
+                "user_moods",
+                "user_tracks",
+                "user_soundscape_mixes",
+                "user_favourites",
+                "user_goals",
+                "user_notifications",
+                "user_subscriptions",
+            ]
+
+            for (const table of appUserTables) {
+                await deleteRows(table, "user_id", appUserId)
+            }
+        }
+
+        await deleteRows("health_connections", "user_id", user.id)
+
         const { error: profileError } = await supabaseAdmin
             .from("users")
             .delete()
@@ -434,7 +480,7 @@ export const DeleteAccount = async (req: Request, res: Response) => {
         })
     } catch (err) {
         console.error("Error deleting account:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return res.status(500).json({ success: false, error: "Failed to delete user account data" })
     }
 }
 

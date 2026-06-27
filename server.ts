@@ -61,9 +61,21 @@ const authLimiter = rateLimit({
 app.use(
     cors({
         origin: (origin, callback) => {
-            if (!origin || allowedOrigins.includes(origin)) {
+            // Allow requests with no origin (mobile apps, Postman, server-to-server)
+            if (!origin) {
                 return callback(null, true)
             }
+            
+            // Wildcard: allow everything
+            if (allowedOrigins.includes("*")) {
+                return callback(null, true)
+            }
+            
+            // Check specific origins
+            if (allowedOrigins.includes(origin)) {
+                return callback(null, true)
+            }
+            
             return callback(new Error("Not allowed by CORS"))
         },
     })

@@ -2,11 +2,11 @@ import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 
 const VALID_GOALS = [
-    "Feel calmer first",
+    "Feel calmer fast",
     "Sleep better",
-    "Focus More",
-    "Build healthy habits",
-    "Stop spiraling",
+    "Focus more",
+    "Build habits",
+    "Stop spiralling",
     "Recover after work",
 ]
 

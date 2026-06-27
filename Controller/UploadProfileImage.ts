@@ -58,6 +58,11 @@ export const UploadProfileImage = async (req: Request, res: Response) => {
         const timestamp = Date.now()
         const storagePath = `${user.id}/${timestamp}.${extension}`
 
+        // Capture existing files BEFORE uploading the new one
+        const { data: existingFiles } = await supabaseAdmin.storage
+            .from(AVATAR_BUCKET)
+            .list(user.id)
+
         const { error: uploadError } = await supabaseAdmin.storage
             .from(AVATAR_BUCKET)
             .upload(storagePath, file.buffer, {
@@ -87,6 +92,23 @@ export const UploadProfileImage = async (req: Request, res: Response) => {
         if (updateError) {
             console.error("Upload profile image profile update error:", updateError)
             return res.status(500).json({ success: false, error: "Failed to update profile image" })
+        }
+
+        // New image saved + DB updated: now clean up the old files
+        if (existingFiles && existingFiles.length > 0) {
+            const oldPaths = existingFiles
+                .map((item) => `${user.id}/${item.name}`)
+                .filter((path) => path !== storagePath)
+
+            if (oldPaths.length > 0) {
+                const { error: removeError } = await supabaseAdmin.storage
+                    .from(AVATAR_BUCKET)
+                    .remove(oldPaths)
+
+                if (removeError) {
+                    console.error("Failed to remove old profile images:", removeError)
+                }
+            }
         }
 
         return res.status(200).json({

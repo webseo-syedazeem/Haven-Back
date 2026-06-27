@@ -96,20 +96,30 @@ export const SyncGoogleProfile = async (req: Request, res: Response) => {
         const name = String(metadata.full_name || metadata.name || email.split("@")[0])
         const profileImageUrl: string | null = metadata.avatar_url || metadata.picture || null
 
+        const { data: existing } = await supabaseAdmin
+            .from("users")
+            .select("google_image_synced")
+            .eq("auth_user_id", authUser.id)
+            .maybeSingle()
+
+        const alreadySynced = existing?.google_image_synced === true
+        const payload: Record<string, any> = {
+            auth_user_id: authUser.id,
+            email,
+            name,
+            is_verified: true,
+            last_sign_in_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        }
+
+        if (!alreadySynced) {
+            payload.profile_image_url = profileImageUrl
+            payload.google_image_synced = true
+        }
+
         const { data: profile, error: profileError } = await supabaseAdmin
             .from("users")
-            .upsert(
-                {
-                    auth_user_id: authUser.id,
-                    email,
-                    name,
-                    is_verified: true,
-                    profile_image_url: profileImageUrl,
-                    last_sign_in_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                },
-                { onConflict: "auth_user_id" }
-            )
+            .upsert(payload, { onConflict: "auth_user_id" })
             .select("*")
             .single()
 

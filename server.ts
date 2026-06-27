@@ -25,6 +25,7 @@ import DailyEaseRoutes from "./Routes/DailyEase.ts"
 import HealthConnectRoutes from "./Routes/HealthConnect.ts"
 
 const app = express()
+app.set("trust proxy", 1)
 const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000").split(",")
 const soundscapesPath = path.join(process.cwd(), "public", "soundscapes")
 
@@ -61,17 +62,12 @@ const authLimiter = rateLimit({
 app.use(
     cors({
         origin: (origin, callback) => {
-            // Allow requests with no origin (mobile apps, Postman, server-to-server)
             if (!origin) {
                 return callback(null, true)
             }
-            
-            // Wildcard: allow everything
             if (allowedOrigins.includes("*")) {
                 return callback(null, true)
             }
-            
-            // Check specific origins
             if (allowedOrigins.includes(origin)) {
                 return callback(null, true)
             }

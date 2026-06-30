@@ -1,4 +1,4 @@
-import express from "express"
+﻿import express from "express"
 import "dotenv/config"
 import cors from "cors"
 import helmet from "helmet"
@@ -28,6 +28,7 @@ const app = express()
 app.set("trust proxy", 1)
 const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000").split(",")
 const soundscapesPath = path.join(process.cwd(), "public", "soundscapes")
+const privacyPolicyPath = path.join(process.cwd(), "public", "legal", "privacy-policy.md")
 
 // Spotify-Grade Performance: Optimized chunk size (128KB) for faster initial mobile buffering over cellular networks
 const AUDIO_CHUNK_SIZE = 128 * 1024 
@@ -36,6 +37,171 @@ const AUDIO_CONTENT_TYPES: Record<string, string> = {
     ".mp3": "audio/mpeg",
     ".ogg": "audio/ogg",
     ".wav": "audio/wav",
+}
+const escapeHtml = (value: string) => {
+    return value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;")
+}
+
+const renderInlineMarkdown = (value: string) => {
+    return escapeHtml(value)
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.+?)\*/g, "<em>$1</em>")
+        .replace(/`(.+?)`/g, "<code>$1</code>")
+}
+
+const renderMarkdown = (markdown: string) => {
+    const lines = markdown.replace(/\r\n/g, "\n").split("\n")
+    const html: string[] = []
+    let inList = false
+    let inBlockquote = false
+
+    const closeList = () => {
+        if (inList) {
+            html.push("</ul>")
+            inList = false
+        }
+    }
+
+    const closeBlockquote = () => {
+        if (inBlockquote) {
+            html.push("</blockquote>")
+            inBlockquote = false
+        }
+    }
+
+    for (const line of lines) {
+        const trimmed = line.trim()
+
+        if (!trimmed) {
+            closeList()
+            closeBlockquote()
+            continue
+        }
+
+        if (/^---+$/.test(trimmed)) {
+            closeList()
+            closeBlockquote()
+            html.push("<hr />")
+            continue
+        }
+
+        const heading = trimmed.match(/^(#{1,6})\s+(.+)$/)
+        if (heading) {
+            closeList()
+            closeBlockquote()
+            const level = heading[1].length
+            html.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`)
+            continue
+        }
+
+        if (trimmed.startsWith(">")) {
+            closeList()
+            if (!inBlockquote) {
+                html.push("<blockquote>")
+                inBlockquote = true
+            }
+            html.push(`<p>${renderInlineMarkdown(trimmed.replace(/^>\s?/, ""))}</p>`)
+            continue
+        }
+
+        const bullet = trimmed.match(/^-\s+(.+)$/)
+        if (bullet) {
+            closeBlockquote()
+            if (!inList) {
+                html.push("<ul>")
+                inList = true
+            }
+            html.push(`<li>${renderInlineMarkdown(bullet[1])}</li>`)
+            continue
+        }
+
+        closeList()
+        closeBlockquote()
+        html.push(`<p>${renderInlineMarkdown(trimmed)}</p>`)
+    }
+
+    closeList()
+    closeBlockquote()
+
+    return html.join("\n")
+}
+
+const renderPrivacyPolicyPage = (markdown: string) => {
+    return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Haven Privacy Policy</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f3ee;
+      --paper: #ffffff;
+      --ink: #173f5f;
+      --muted: #4a5565;
+      --line: #e7dfd6;
+      --accent: #7b61ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--muted);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.65;
+    }
+    main {
+      width: min(920px, calc(100% - 32px));
+      margin: 40px auto;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: clamp(24px, 4vw, 48px);
+      box-shadow: 0 18px 50px rgba(23, 63, 95, 0.08);
+    }
+    h1, h2, h3, h4, h5, h6 {
+      color: var(--ink);
+      line-height: 1.25;
+      margin: 1.6em 0 0.55em;
+    }
+    h1 { margin-top: 0; font-size: clamp(2rem, 5vw, 3.2rem); }
+    h2 { font-size: clamp(1.35rem, 3vw, 1.85rem); border-top: 1px solid var(--line); padding-top: 1.1em; }
+    p, li { font-size: 1rem; }
+    ul { padding-left: 1.35rem; }
+    li { margin: 0.45rem 0; }
+    blockquote {
+      border-left: 4px solid var(--accent);
+      background: rgba(123, 97, 255, 0.08);
+      margin: 1.4rem 0;
+      padding: 0.8rem 1rem;
+      border-radius: 0 8px 8px 0;
+    }
+    blockquote p { margin: 0.4rem 0; }
+    hr { border: 0; border-top: 1px solid var(--line); margin: 2rem 0; }
+    code {
+      background: #f2eef9;
+      color: var(--ink);
+      border-radius: 4px;
+      padding: 0.08rem 0.28rem;
+    }
+    strong { color: #243447; }
+    @media (max-width: 640px) {
+      main { margin: 16px auto; padding: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+${renderMarkdown(markdown)}
+  </main>
+</body>
+</html>`
 }
 
 app.use(helmet({
@@ -180,6 +346,28 @@ app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, async (req, res) => {
     }
 })
 
+app.get("/privacy-policy", async (_req, res) => {
+    try {
+        const markdown = await fs.promises.readFile(privacyPolicyPath, "utf8")
+        res.status(200).type("html").send(renderPrivacyPolicyPage(markdown))
+    } catch (error: any) {
+        if (error.code === "ENOENT") {
+            return res.status(404).json({ message: "Privacy policy not found" })
+        }
+        return res.status(500).json({ message: "Internal server error" })
+    }
+})
+
+app.get("/privacy-policy.md", async (_req, res) => {
+    try {
+        res.status(200).type("text/markdown").send(await fs.promises.readFile(privacyPolicyPath, "utf8"))
+    } catch (error: any) {
+        if (error.code === "ENOENT") {
+            return res.status(404).json({ message: "Privacy policy not found" })
+        }
+        return res.status(500).json({ message: "Internal server error" })
+    }
+})
 // REMOVED express.static to avoid routing middleware conflicts on "/soundscapes"
 
 app.use("/api", Authroutes)
@@ -269,3 +457,4 @@ server.on("error", (error: NodeJS.ErrnoException) => {
 
     throw error
 })
+

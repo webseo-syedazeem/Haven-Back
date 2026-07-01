@@ -1,4 +1,4 @@
-// Haven - HealthConnect Integration
+// Steadia - HealthConnect Integration
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 

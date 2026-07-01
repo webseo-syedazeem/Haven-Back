@@ -1,4 +1,4 @@
-// Haven - HealthConnect Integration
+// Steadia - HealthConnect Integration
 import express from "express"
 import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
 import {

@@ -1,4 +1,4 @@
-import type { Request, Response } from "express"
+﻿import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -181,7 +181,7 @@ const getInsightMessage = (
     if (goal === "Focus More") {
         return "Clarity follows calm. Tick one more task to close the day strong."
     }
-    return "Every check-in helps Haven understand your pattern better. Keep going!"
+    return "Every check-in helps Steadia understand your pattern better. Keep going!"
 }
 
 // ─── main controller ─────────────────────────────────────────────────────────

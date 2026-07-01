@@ -1,4 +1,4 @@
--- Haven - HealthConnect Integration
+-- Steadia - HealthConnect Integration
 -- Paste this into the Supabase SQL editor.
 
 create extension if not exists pgcrypto;

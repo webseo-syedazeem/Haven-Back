@@ -137,7 +137,7 @@ const renderPrivacyPolicyPage = (markdown: string) => {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Haven Privacy Policy</title>
+  <title>Steadia Privacy Policy</title>
   <style>
     :root {
       color-scheme: light;
@@ -390,9 +390,9 @@ const options = {
     definition: {
         openapi: "3.0.0",
         info: {
-            title: "Haven API",
+            title: "Steadia API",
             version: "1.0.0",
-            description: "Haven API documentation",
+            description: "Steadia API documentation",
         },
         servers: [
             {

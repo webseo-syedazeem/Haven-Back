@@ -55,7 +55,7 @@ const getInsightMessage = (
     if (stress_level <= 3) {
         return "You are in a good place today. Carry this calm into tomorrow."
     }
-    return "Every check-in helps Heaven understand your pattern better."
+    return "Every check-in helps Steadia understand your pattern better."
 }
 
 const persistDailyEaseForCheckin = async (checkinId: string, dailyEase: DailyEaseResult) => {

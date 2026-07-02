@@ -137,7 +137,7 @@ const renderPrivacyPolicyPage = (markdown: string) => {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Steadia Privacy Policy</title>
+  <title>Halcyon Privacy Policy</title>
   <style>
     :root {
       color-scheme: light;
@@ -390,9 +390,9 @@ const options = {
     definition: {
         openapi: "3.0.0",
         info: {
-            title: "Steadia API",
+            title: "Halcyon API",
             version: "1.0.0",
-            description: "Steadia API documentation",
+            description: "Halcyon API documentation",
         },
         servers: [
             {

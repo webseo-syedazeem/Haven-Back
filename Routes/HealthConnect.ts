@@ -1,4 +1,4 @@
-// Steadia - HealthConnect Integration
+// Halcyon - HealthConnect Integration
 import express from "express"
 import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
 import {

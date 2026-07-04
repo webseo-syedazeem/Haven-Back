@@ -15,6 +15,6 @@
     "isolatedModules": true,
     "noEmitOnError": true
   },
-  "include": ["server.ts", "Config/**/*.ts", "Controller/**/*.ts", "Routes/**/*.ts"],
+  "include": ["server.ts", "Config/**/*.ts", "Controller/**/*.ts", "Routes/**/*.ts", "Utils/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

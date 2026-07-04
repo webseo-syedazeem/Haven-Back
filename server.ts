@@ -23,6 +23,7 @@ import ProgressRoutes from "./Routes/Progress.ts"
 import SubscriptionRoutes from "./Routes/Subscription.ts"
 import DailyEaseRoutes from "./Routes/DailyEase.ts"
 import HealthConnectRoutes from "./Routes/HealthConnect.ts"
+import { connectRedis } from "./Config/RedisConnection.ts"
 
 const app = express()
 app.set("trust proxy", 1)
@@ -441,20 +442,32 @@ app.get("/", (req, res) => {
 const PORT = Number(process.env.PORT) || 3000
 const SERVER_URL = process.env.SERVER_URL || "http://localhost:3000"
 
-const server = app.listen(PORT)
-
-server.on("listening", () => {
-    console.log(`Server running on port ${SERVER_URL}`)
-})
-
-server.on("error", (error: NodeJS.ErrnoException) => {
-    if (error.code === "EADDRINUSE") {
-        console.error(
-            `Port ${PORT} is already in use. Change PORT in .env or stop the other Node process.`
-        )
+const startServer = async () => {
+    try {
+        await connectRedis()
+        console.log("Redis startup check completed")
+    } catch (error: any) {
+        console.error("Unable to connect to Redis before server startup:", error.message)
         process.exit(1)
     }
 
-    throw error
-})
+    const server = app.listen(PORT)
+
+    server.on("listening", () => {
+        console.log(`Server running on port ${SERVER_URL}`)
+    })
+
+    server.on("error", (error: NodeJS.ErrnoException) => {
+        if (error.code === "EADDRINUSE") {
+            console.error(
+                `Port ${PORT} is already in use. Change PORT in .env or stop the other Node process.`
+            )
+            process.exit(1)
+        }
+
+        throw error
+    })
+}
+
+startServer()
 

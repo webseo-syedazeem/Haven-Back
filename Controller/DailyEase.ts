@@ -1,5 +1,6 @@
 ﻿import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
+import { CacheTTL, getCachedUserId, getOrSetCacheWithRevalidate } from "../Utils/CacheHelper.ts"
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -320,23 +321,38 @@ export const CalculateDailyEase = async (
         date: today,
     }
 }
+
 export const GetDailyEase = async (req: Request, res: Response) => {
     try {
         const user = req.user!
 
         // 1. resolve internal user id
-        const { data: userProfile, error: profileError } = await supabaseAdmin
-            .from("users")
-            .select("id")
-            .eq("auth_user_id", user.id)
-            .single()
+        const userId = await getCachedUserId(user.id, async () => {
+            const { data: userProfile, error: profileError } = await supabaseAdmin
+                .from("users")
+                .select("id")
+                .eq("auth_user_id", user.id)
+                .single()
 
-        if (profileError || !userProfile) {
+            if (profileError || !userProfile) {
+                return null
+            }
+
+            return Number(userProfile.id)
+        })
+
+        if (userId === null) {
             return res.status(401).json({ success: false, error: "User profile not found" })
         }
 
-        const dailyEase = await CalculateDailyEase(userProfile.id, getTodayDate())
-
+        const userIdValue = String(userId)
+        const today = getTodayDate()
+        const cacheKey = `daily_ease:${userIdValue}:${today}`
+        const dailyEase = await getOrSetCacheWithRevalidate<DailyEaseResult>(
+            cacheKey,
+            CacheTTL.DAILY_EASE,
+            () => CalculateDailyEase(userIdValue, today),
+        )
         return res.status(200).json({
             success: true,
             data: dailyEase,
@@ -346,3 +362,4 @@ export const GetDailyEase = async (req: Request, res: Response) => {
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
 }
+

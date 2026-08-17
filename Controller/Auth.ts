@@ -447,17 +447,17 @@ export const DeleteAccount = async (req: Request, res: Response) => {
         if (userProfile?.id) {
             const appUserId = userProfile.id
             const appUserTables = [
-                "user_breathing_sessions",
-                "daily_checkins",
-                "user_checklists",
-                "user_setup",
-                "user_moods",
-                "user_tracks",
-                "user_soundscape_mixes",
                 "user_favourites",
-                "user_goals",
-                "user_notifications",
-                "user_subscriptions",
+                "user_downloads",
+                "user_play_history",
+                "user_sound_preferences",
+                "user_playback_settings",
+                "user_download_settings",
+                "user_notification_settings",
+                "user_playlists",
+                "user_player_state",
+                "user_onboarding",
+                "user_device_tokens",
             ]
 
             for (const table of appUserTables) {
@@ -465,7 +465,26 @@ export const DeleteAccount = async (req: Request, res: Response) => {
             }
         }
 
-        await deleteRows("health_connections", "user_id", user.id)
+        // Best-effort: storage cleanup failures should not block account deletion.
+        try {
+            const { data: avatarFiles, error: avatarListError } = await supabaseAdmin.storage
+                .from("avatars")
+                .list(user.id)
+
+            if (avatarListError) {
+                console.error("List avatar files before delete error:", avatarListError)
+            } else if (avatarFiles && avatarFiles.length > 0) {
+                const { error: avatarRemoveError } = await supabaseAdmin.storage
+                    .from("avatars")
+                    .remove(avatarFiles.map((file) => `${user.id}/${file.name}`))
+
+                if (avatarRemoveError) {
+                    console.error("Remove avatar files before delete error:", avatarRemoveError)
+                }
+            }
+        } catch (avatarErr) {
+            console.error("Unexpected error cleaning up avatar files:", avatarErr)
+        }
 
         const { error: profileError } = await supabaseAdmin
             .from("users")

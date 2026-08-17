@@ -9,20 +9,22 @@ import path from "path"
 import swaggerUi from "swagger-ui-express"
 import swaggerJsdoc from "swagger-jsdoc"
 import Authroutes from "./Routes/Auth.ts"
-import SetupRoutes from "./Routes/Setup.ts"
-import CheckinRoutes from "./Routes/Checkin.ts"
-import MoodRoutes from "./Routes/Mood.ts"
-import BreathingRoutes from "./Routes/Breathing.ts"
 import SoundscapeRoutes from "./Routes/Soundscape.ts"
-import ChecklistRoutes from "./Routes/Checklist.ts"
-import GoalsRoutes from "./Routes/Goals.ts"
 import FavouritesRoutes from "./Routes/Favourites.ts"
+import PlaylistsRoutes from "./Routes/Playlists.ts"
+import DownloadsRoutes from "./Routes/Downloads.ts"
+import PlayHistoryRoutes from "./Routes/PlayHistory.ts"
+import PreferencesRoutes from "./Routes/Preferences.ts"
 import NotificationsRoutes from "./Routes/Notifications.ts"
-import TrackRoutes from "./Routes/Track.ts"
-import ProgressRoutes from "./Routes/Progress.ts"
-import SubscriptionRoutes from "./Routes/Subscription.ts"
-import DailyEaseRoutes from "./Routes/DailyEase.ts"
-import HealthConnectRoutes from "./Routes/HealthConnect.ts"
+import SupportRoutes from "./Routes/Support.ts"
+import AccountRoutes from "./Routes/Account.ts"
+import AdminRoutes from "./Routes/Admin.ts"
+import AnalyticsRoutes from "./Routes/Analytics.ts"
+import PlayerRoutes from "./Routes/Player.ts"
+import HomeRoutes from "./Routes/Home.ts"
+import RecommendationsRoutes from "./Routes/Recommendations.ts"
+import OnboardingRoutes from "./Routes/Onboarding.ts"
+import HelpRoutes from "./Routes/Help.ts"
 import { connectRedis } from "./Config/RedisConnection.ts"
 
 const app = express()
@@ -30,6 +32,7 @@ app.set("trust proxy", 1)
 const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000").split(",")
 const soundscapesPath = path.join(process.cwd(), "public", "soundscapes")
 const privacyPolicyPath = path.join(process.cwd(), "public", "legal", "privacy-policy.md")
+const adminPanelPath = path.join(process.cwd(), "public", "admin", "index.html")
 
 // Spotify-Grade Performance: Optimized chunk size (128KB) for faster initial mobile buffering over cellular networks
 const AUDIO_CHUNK_SIZE = 128 * 1024 
@@ -243,7 +246,6 @@ app.use(
         },
     })
 )
-app.use("/api/subscription/webhook", express.raw({ type: "application/json" }))
 
 if (process.env.NODE_ENV === "Production") {
     app.use("/api", apiLimiter)
@@ -369,23 +371,29 @@ app.get("/privacy-policy.md", async (_req, res) => {
         return res.status(500).json({ message: "Internal server error" })
     }
 })
+
+app.get("/admin", (_req, res) => {
+    res.sendFile(adminPanelPath)
+})
 // REMOVED express.static to avoid routing middleware conflicts on "/soundscapes"
 
 app.use("/api", Authroutes)
-app.use("/api", SetupRoutes)
-app.use("/api", CheckinRoutes)
-app.use("/api", MoodRoutes)
-app.use("/api", BreathingRoutes)
 app.use("/api", SoundscapeRoutes)
-app.use("/api", ChecklistRoutes)
-app.use("/api", GoalsRoutes)
 app.use("/api", FavouritesRoutes)
+app.use("/api", PlaylistsRoutes)
+app.use("/api", DownloadsRoutes)
+app.use("/api", PlayHistoryRoutes)
+app.use("/api", PreferencesRoutes)
 app.use("/api", NotificationsRoutes)
-app.use("/api", TrackRoutes)
-app.use("/api", ProgressRoutes)
-app.use("/api", SubscriptionRoutes)
-app.use("/api", DailyEaseRoutes)
-app.use("/api", HealthConnectRoutes)
+app.use("/api", SupportRoutes)
+app.use("/api", AccountRoutes)
+app.use("/api", AnalyticsRoutes)
+app.use("/api", PlayerRoutes)
+app.use("/api", HomeRoutes)
+app.use("/api", RecommendationsRoutes)
+app.use("/api", OnboardingRoutes)
+app.use("/api", HelpRoutes)
+app.use("/api", AdminRoutes)
 // Swagger Config
 const options = {
     definition: {
@@ -415,7 +423,6 @@ const options = {
     apis: [
         path.resolve("server.ts"),
         path.resolve("Routes", "*.ts"),
-        path.resolve("Routes", "Checkin.ts"),
     ],
 }
 

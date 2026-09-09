@@ -1,3 +1,4 @@
+import { remember, CacheTTL, CacheReadError, userCacheKey, invalidateUser } from "../Utils/CacheHelper.ts"
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 
@@ -21,6 +22,59 @@ const getUserProfileId = async (authUserId: string) => {
         .select("id")
         .eq("auth_user_id", authUserId)
         .single()
+}
+
+/**
+ * Optional product-level download allowance, so the client has a meaningful
+ * denominator for a usage bar. This is a soft cap chosen by the product, NOT
+ * the device's free space — the server cannot know that, and the app measures
+ * real device storage itself.
+ *
+ * Resolution order: the `download_quota_bytes` remote_config key (so it can be
+ * changed without a deploy), then the DOWNLOAD_QUOTA_BYTES env var. When
+ * neither is set the response reports null rather than an invented number.
+ */
+const DOWNLOAD_QUOTA_CONFIG_KEY = "download_quota_bytes"
+
+const parseQuotaBytes = (value: unknown): number | null => {
+    const numeric = typeof value === "number" ? value : Number(String(value ?? "").trim())
+
+    if (!Number.isFinite(numeric) || !Number.isInteger(numeric) || numeric <= 0) {
+        return null
+    }
+
+    return numeric
+}
+
+const getDownloadQuotaBytes = async (): Promise<number | null> => {
+    try {
+        const { data: entry, error } = await supabaseAdmin
+            .from("remote_config")
+            .select("value")
+            .eq("key", DOWNLOAD_QUOTA_CONFIG_KEY)
+            .maybeSingle()
+
+        if (error) {
+            console.error("Download quota remote config lookup error:", error)
+        } else if (entry) {
+            // remote_config.value is jsonb, so it can arrive as a number, a
+            // numeric string, or an object wrapping either.
+            const raw = entry.value
+            const candidate = raw !== null && typeof raw === "object" && !Array.isArray(raw)
+                ? (raw as Record<string, unknown>).bytes ?? (raw as Record<string, unknown>).value
+                : raw
+            const fromConfig = parseQuotaBytes(candidate)
+
+            if (fromConfig !== null) {
+                return fromConfig
+            }
+        }
+    } catch (err) {
+        // A missing key or an unreachable config table must not break storage.
+        console.error("Download quota remote config lookup failed:", err)
+    }
+
+    return parseQuotaBytes(process.env.DOWNLOAD_QUOTA_BYTES)
 }
 
 const getLiveSoundscape = async (soundscapeId: string) => {
@@ -87,6 +141,8 @@ export const CreateDownload = async (req: Request, res: Response) => {
             console.error("Create download error:", downloadError)
             return res.status(500).json({ success: false, error: "Failed to create download" })
         }
+
+        await invalidateUser(req.user!.id, ["downloads"])
 
         return res.status(200).json({ success: true, data: { download } })
     } catch (err) {
@@ -163,6 +219,8 @@ export const UpdateDownloadStatus = async (req: Request, res: Response) => {
             return res.status(404).json({ success: false, error: "Download not found" })
         }
 
+        await invalidateUser(req.user!.id, ["downloads"])
+
         return res.status(200).json({ success: true, data: { download } })
     } catch (err) {
         console.error("Error updating download status:", err)
@@ -172,40 +230,45 @@ export const UpdateDownloadStatus = async (req: Request, res: Response) => {
 
 export const GetDownloads = async (req: Request, res: Response) => {
     try {
-        const { data: userProfile, error: profileError } = await getUserProfileId(req.user!.id)
+        const data = await remember(userCacheKey(req.user?.id, "downloads"), CacheTTL.USER, async () => {
+            const { data: userProfile, error: profileError } = await getUserProfileId(req.user!.id)
 
-        if (profileError || !userProfile) {
-            console.error("Get downloads profile error:", profileError)
-            return res.status(401).json({ success: false, error: "User profile not found" })
-        }
+            if (profileError || !userProfile) {
+                console.error("Get downloads profile error:", profileError)
+                throw new CacheReadError(401, "User profile not found")
+            }
 
-        const { data: downloads, error: downloadsError } = await supabaseAdmin
-            .from("user_downloads")
-            .select(`
-                id,
-                user_id,
-                soundscape_id,
-                quality,
-                status,
-                file_size_bytes,
-                created_at,
-                updated_at,
-                soundscape:soundscapes!inner(title, artwork_url, mode, duration_seconds)
-            `)
-            .eq("user_id", userProfile.id)
-            .eq("soundscape.status", "live")
-            .order("created_at", { ascending: false })
+            const { data: downloads, error: downloadsError } = await supabaseAdmin
+                .from("user_downloads")
+                .select(`
+                    id,
+                    user_id,
+                    soundscape_id,
+                    quality,
+                    status,
+                    file_size_bytes,
+                    created_at,
+                    updated_at,
+                    soundscape:soundscapes!inner(title, artwork_url, mode, duration_seconds)
+                `)
+                .eq("user_id", userProfile.id)
+                .eq("soundscape.status", "live")
+                .order("created_at", { ascending: false })
 
-        if (downloadsError) {
-            console.error("Get downloads error:", downloadsError)
-            return res.status(500).json({ success: false, error: "Failed to get downloads" })
-        }
+            if (downloadsError) {
+                console.error("Get downloads error:", downloadsError)
+                throw new CacheReadError(500, "Failed to get downloads")
+            }
 
-        return res.status(200).json({
-            success: true,
-            data: { downloads: downloads || [] },
+            return { downloads: downloads || [] }
         })
+
+        return res.status(200).json({ success: true, data })
     } catch (err) {
+        if (err instanceof CacheReadError) {
+            return res.status(err.statusCode).json({ success: false, error: err.message })
+        }
+
         console.error("Error getting downloads:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
@@ -237,9 +300,13 @@ export const GetDownloadsStorage = async (req: Request, res: Response) => {
         const rows = downloads || []
         const totalBytes = rows.reduce((sum, row) => sum + (Number(row.file_size_bytes) || 0), 0)
 
+        // Additive: total_bytes and count are unchanged. quota_bytes is null
+        // unless a product allowance has been configured.
+        const quotaBytes = await getDownloadQuotaBytes()
+
         return res.status(200).json({
             success: true,
-            data: { total_bytes: totalBytes, count: rows.length },
+            data: { total_bytes: totalBytes, count: rows.length, quota_bytes: quotaBytes },
         })
     } catch (err) {
         console.error("Error getting downloads storage:", err)
@@ -266,6 +333,8 @@ export const DeleteAllDownloads = async (req: Request, res: Response) => {
             console.error("Delete all downloads error:", deleteError)
             return res.status(500).json({ success: false, error: "Failed to delete downloads" })
         }
+
+        await invalidateUser(req.user!.id, ["downloads"])
 
         return res.status(200).json({
             success: true,
@@ -304,6 +373,8 @@ export const DeleteDownload = async (req: Request, res: Response) => {
         if (!download) {
             return res.status(404).json({ success: false, error: "Download not found" })
         }
+
+        await invalidateUser(req.user!.id, ["downloads"])
 
         return res.status(200).json({ success: true, data: { download } })
     } catch (err) {

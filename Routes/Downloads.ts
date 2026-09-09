@@ -81,6 +81,12 @@ DownloadsRoutes.get("/downloads", AuthMiddleware, GetDownloads)
  *     tags:
  *       - Downloads
  *     summary: Get the authenticated user's total download storage use
+ *     description: >
+ *       Returns total_bytes and count for completed downloads, plus quota_bytes —
+ *       an optional soft product allowance from the download_quota_bytes
+ *       remote_config key or the DOWNLOAD_QUOTA_BYTES env var, and null when neither
+ *       is configured. quota_bytes is NOT device free space; the app measures that
+ *       itself.
  *     security:
  *       - bearerAuth: []
  *     responses:

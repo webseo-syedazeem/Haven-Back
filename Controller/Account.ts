@@ -1,3 +1,4 @@
+import { invalidateUser, invalidateContent, invalidatePreferences } from "../Utils/CacheHelper.ts"
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 import { validateSoundPreferencesBody } from "./Preferences.ts"
@@ -30,6 +31,7 @@ const DOWNLOAD_SETTING_DEFAULTS = {
 const NOTIFICATION_SETTING_DEFAULTS = {
     reminders_enabled: false,
     new_collection_alerts: false,
+    reminder_time: null as string | null,
 }
 
 type PlaylistItemRow = {
@@ -411,6 +413,8 @@ export const ImportGuestData = async (req: Request, res: Response) => {
                     return res.status(500).json({ success: false, error: "Failed to import guest data" })
                 }
 
+                await invalidateUser(req.user!.id, ["favourites", "recommendations", "home-recommended"])
+                await invalidateContent({ keys: ["collections:popular"] })
                 favouritesAdded = toInsert.length
             }
         }
@@ -505,6 +509,7 @@ export const ImportGuestData = async (req: Request, res: Response) => {
                     return res.status(500).json({ success: false, error: "Failed to import guest data" })
                 }
 
+                await invalidatePreferences(req.user!.id)
                 preferencesApplied = true
             }
         }
@@ -544,6 +549,7 @@ export const ImportGuestData = async (req: Request, res: Response) => {
                     return res.status(500).json({ success: false, error: "Failed to import guest data" })
                 }
 
+                await invalidatePreferences(req.user!.id)
                 onboardingApplied = true
             }
         }

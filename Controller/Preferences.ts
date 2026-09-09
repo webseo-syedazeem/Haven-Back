@@ -1,3 +1,4 @@
+import { invalidatePreferences } from "../Utils/CacheHelper.ts"
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 
@@ -198,6 +199,8 @@ export const UpdateSoundPreferences = async (req: Request, res: Response) => {
             console.error("Update sound preferences error:", preferencesError)
             return res.status(500).json({ success: false, error: "Failed to update sound preferences" })
         }
+
+        await invalidatePreferences(req.user!.id)
 
         return res.status(200).json({ success: true, data: { preferences } })
     } catch (err) {
@@ -429,6 +432,95 @@ export const UpdateDownloadPreferences = async (req: Request, res: Response) => 
         return res.status(200).json({ success: true, data: { settings } })
     } catch (err) {
         console.error("Error updating download preferences:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
+/**
+ * Privacy preferences.
+ *
+ * `analytics_enabled` lives on `public.users` rather than in its own settings
+ * table because it gates a whole-account behaviour that the analytics ingest
+ * has to check on every request — keeping it on the row that lookup already
+ * loads avoids a second query per event. It is exposed here, next to the other
+ * `/api/preferences/*` endpoints, and returned under `data.settings` so it
+ * matches the shape of playback, download and notification settings.
+ *
+ * It is deliberately NOT folded into an existing preferences endpoint: the
+ * frontend caches those four payloads independently, and adding an unrelated
+ * key to one of them would surprise the screen that owns it.
+ */
+export const GetPrivacyPreferences = async (req: Request, res: Response) => {
+    try {
+        const { data: profile, error: profileError } = await supabaseAdmin
+            .from("users")
+            .select("id, analytics_enabled")
+            .eq("auth_user_id", req.user!.id)
+            .maybeSingle()
+
+        if (profileError) {
+            console.error("Get privacy preferences error:", profileError)
+            return res.status(500).json({ success: false, error: "Failed to get privacy preferences" })
+        }
+
+        if (!profile) {
+            return res.status(401).json({ success: false, error: "User profile not found" })
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                settings: {
+                    user_id: profile.id,
+                    analytics_enabled: profile.analytics_enabled === true,
+                },
+            },
+        })
+    } catch (err) {
+        console.error("Error getting privacy preferences:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
+export const UpdatePrivacyPreferences = async (req: Request, res: Response) => {
+    const body = getRequestBody(req)
+
+    if (!hasOwn(body, "analytics_enabled")) {
+        return res.status(400).json({ success: false, error: "analytics_enabled is required" })
+    }
+
+    if (typeof body.analytics_enabled !== "boolean") {
+        return res.status(400).json({ success: false, error: "analytics_enabled must be a boolean" })
+    }
+
+    try {
+        const { data: profile, error: profileError } = await supabaseAdmin
+            .from("users")
+            .update({ analytics_enabled: body.analytics_enabled })
+            .eq("auth_user_id", req.user!.id)
+            .select("id, analytics_enabled")
+            .maybeSingle()
+
+        if (profileError) {
+            console.error("Update privacy preferences error:", profileError)
+            return res.status(500).json({ success: false, error: "Failed to update privacy preferences" })
+        }
+
+        if (!profile) {
+            return res.status(401).json({ success: false, error: "User profile not found" })
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                settings: {
+                    user_id: profile.id,
+                    analytics_enabled: profile.analytics_enabled === true,
+                },
+            },
+        })
+    } catch (err) {
+        console.error("Error updating privacy preferences:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
 }

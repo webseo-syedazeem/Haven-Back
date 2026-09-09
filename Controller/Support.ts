@@ -155,6 +155,15 @@ export const ReportAudioProblem = async (req: Request, res: Response) => {
         return
     }
 
+    // Optional structured reason (e.g. "Audio cuts out"). Additive: `message`
+    // is validated and stored exactly as before, so a client that still folds
+    // the reason into the message text keeps working unchanged.
+    const reason = getOptionalString(body, "reason", res)
+
+    if (reason === undefined) {
+        return
+    }
+
     const contactEmail = getOptionalString(body, "contact_email", res)
 
     if (contactEmail === undefined) {
@@ -189,8 +198,9 @@ export const ReportAudioProblem = async (req: Request, res: Response) => {
                 user_id: identity.userId,
                 type: "report_audio_problem",
                 subject: `Audio issue: ${soundscape.title || "Soundscape"}`,
-                message: suppliedMessage || "Audio problem reported",
+                message: suppliedMessage || reason || "Audio problem reported",
                 soundscape_id: soundscape.id,
+                reason,
                 contact_email: contactEmail,
             })
             .select("*")

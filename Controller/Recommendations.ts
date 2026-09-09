@@ -1,3 +1,4 @@
+import { remember, CacheTTL, userCacheKey } from "../Utils/CacheHelper.ts"
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 
@@ -83,17 +84,19 @@ const extractMinutes = (value: string): number | null => {
     return match ? Number(match[0]) : null
 }
 
-const getAppUserId = async (req: Request): Promise<string | number | null> => {
+const getAppUserId = async (req: Request, cacheState?: { cacheable: boolean }): Promise<string | number | null> => {
     if (!req.user) {
         return null
     }
 
-    const { data: userProfile } = await supabaseAdmin
+    const { data: userProfile, error } = await supabaseAdmin
         .from("users")
         .select("id")
         .eq("auth_user_id", req.user.id)
         .maybeSingle()
 
+    // Preserve the existing guest fallback, but never cache a failed profile lookup.
+    if (error && cacheState) cacheState.cacheable = false
     return userProfile ? (userProfile.id as string | number) : null
 }
 
@@ -214,8 +217,8 @@ const titleOf = (soundscape: SoundscapeRow) =>
 // soundscapes identically. Loads the full live catalogue into memory and scores it
 // in application code, matching the existing GetSimilarSoundscapes/GetPopularCollections
 // pattern in Controller/Soundscape.ts rather than a new Postgres function.
-export const getRankedLiveSoundscapes = async (req: Request): Promise<SoundscapeRow[]> => {
-    const appUserId = await getAppUserId(req)
+export const getRankedLiveSoundscapes = async (req: Request, cacheState?: { cacheable: boolean }): Promise<SoundscapeRow[]> => {
+    const appUserId = await getAppUserId(req, cacheState)
     const signals = await getUserSignals(appUserId)
 
     const { data: soundscapes, error: soundscapesError } = await supabaseAdmin
@@ -300,15 +303,20 @@ export const GetRecommendations = async (req: Request, res: Response) => {
     }
 
     try {
-        const ranked = await getRankedLiveSoundscapes(req)
+        const cacheState = { cacheable: true }
+        const key = userCacheKey(req.user?.id, parsedCount.count === DEFAULT_ALTERNATIVES_COUNT
+            ? "recommendations"
+            : `recommendations:count:${parsedCount.count}`)
+        const data = await remember(key, CacheTTL.USER, async () => {
+            const ranked = await getRankedLiveSoundscapes(req, cacheState)
 
-        return res.status(200).json({
-            success: true,
-            data: {
+            return {
                 best_match: ranked[0] || null,
                 alternatives: ranked.slice(1, 1 + parsedCount.count),
-            },
-        })
+            }
+        }, () => cacheState.cacheable)
+
+        return res.status(200).json({ success: true, data })
     } catch (err) {
         console.error("Error getting recommendations:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
@@ -317,12 +325,14 @@ export const GetRecommendations = async (req: Request, res: Response) => {
 
 export const GetRecommendedNow = async (req: Request, res: Response) => {
     try {
-        const ranked = await getRankedLiveSoundscapes(req)
+        const cacheState = { cacheable: true }
+        const data = await remember(userCacheKey(req.user?.id, "home-recommended"), CacheTTL.USER, async () => {
+            const ranked = await getRankedLiveSoundscapes(req, cacheState)
 
-        return res.status(200).json({
-            success: true,
-            data: { soundscapes: ranked.slice(0, RECOMMENDED_NOW_LIMIT) },
-        })
+            return { soundscapes: ranked.slice(0, RECOMMENDED_NOW_LIMIT) }
+        }, () => cacheState.cacheable)
+
+        return res.status(200).json({ success: true, data })
     } catch (err) {
         console.error("Error getting recommended now:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })

@@ -1,3 +1,4 @@
+import { invalidateUser, invalidateContent } from "../Utils/CacheHelper.ts"
 import { createClient } from "@supabase/supabase-js"
 import type { Request, Response } from "express"
 import { supabase, supabaseAdmin, supabaseUrlValue, supabaseAnonKeyValue } from "../Config/Dbconnection.ts"
@@ -460,8 +461,14 @@ export const DeleteAccount = async (req: Request, res: Response) => {
                 "user_device_tokens",
             ]
 
-            for (const table of appUserTables) {
-                await deleteRows(table, "user_id", appUserId)
+            try {
+                for (const table of appUserTables) {
+                    await deleteRows(table, "user_id", appUserId)
+                }
+            } finally {
+                // Some deletions may have committed before a later table failed.
+                await invalidateUser(user.id)
+                await invalidateContent({ keys: ["collections:popular"] })
             }
         }
 
@@ -547,7 +554,7 @@ export const GetCurrentUser = async (req: Request, res: Response) => {
 
         const { data: profile, error: profileError } = await supabaseAdmin
             .from("users")
-            .select("id, auth_user_id, name, email, profile_image_url, is_verified, last_sign_in_at, created_at, updated_at")
+            .select("id, auth_user_id, name, email, profile_image_url, is_verified, onboarding_completed, last_sign_in_at, created_at, updated_at")
             .eq("auth_user_id", user.id)
             .single()
 

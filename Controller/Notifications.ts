@@ -5,6 +5,35 @@ import { sendPush } from "../Utils/PushNotifications.ts"
 const NOTIFICATION_SETTING_DEFAULTS = {
     reminders_enabled: false,
     new_collection_alerts: false,
+    reminder_time: null as string | null,
+}
+
+// "HH:MM" or "HH:MM:SS", 24h. Stored in a `time without time zone` column, so
+// the value is normalised to seconds precision before it is written.
+const REMINDER_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/
+
+const normalizeReminderTime = (value: unknown): { value: string | null } | { error: string } => {
+    if (value === null) {
+        return { value: null }
+    }
+
+    if (typeof value !== "string") {
+        return { error: "reminder_time must be a 24-hour HH:MM string or null" }
+    }
+
+    const trimmed = value.trim()
+
+    if (!trimmed) {
+        return { value: null }
+    }
+
+    const match = REMINDER_TIME_PATTERN.exec(trimmed)
+
+    if (!match) {
+        return { error: "reminder_time must be a 24-hour HH:MM string or null" }
+    }
+
+    return { value: `${match[1]}:${match[2]}:${match[3] || "00"}` }
 }
 
 const DEVICE_PLATFORMS = ["ios", "android", "web"] as const
@@ -95,6 +124,18 @@ export const UpdateNotificationPreferences = async (req: Request, res: Response)
         }
 
         updates[field] = body[field]
+    }
+
+    // Optional: absent means "leave whatever is stored alone", so existing
+    // clients that only send the two booleans behave exactly as before.
+    if (hasOwn(body, "reminder_time")) {
+        const normalized = normalizeReminderTime(body.reminder_time)
+
+        if ("error" in normalized) {
+            return res.status(400).json({ success: false, error: normalized.error })
+        }
+
+        updates.reminder_time = normalized.value
     }
 
     try {

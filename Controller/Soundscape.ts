@@ -1,3 +1,4 @@
+import { remember, CacheTTL, CacheReadError, libraryCacheKey } from "../Utils/CacheHelper.ts"
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 
@@ -238,49 +239,55 @@ export const GetLibrary = async (req: Request, res: Response) => {
             }
         }
 
-        const { data: soundscapes, error: soundscapesError } = await supabaseAdmin.rpc(
-            "filter_soundscapes",
-            {
-                p_modes: modes,
-                p_environments: environments,
-                p_contains: contains,
-                p_avoids: avoids,
-                p_animals: animals,
-                p_instruments: instruments,
-                p_detail_levels: detailLevels,
-                p_min_duration_seconds: minDuration.value,
-                p_max_duration_seconds: maxDuration.value,
-                p_sort: sort,
-            }
-        )
-
-        if (soundscapesError) {
-            console.error("Get library error:", soundscapesError)
-            return res.status(500).json({ success: false, error: "Failed to get library" })
+        const appliedFilters = {
+            modes,
+            environments,
+            contains,
+            avoids,
+            animals,
+            instruments,
+            detail_levels: detailLevels,
+            min_duration: minDuration.value,
+            max_duration: maxDuration.value,
+            sort,
         }
 
-        const rows = Array.isArray(soundscapes) ? soundscapes : []
+        // Cache catalogue data only; echo this request's filter order/spelling below.
+        const data = await remember(libraryCacheKey(appliedFilters), CacheTTL.LIBRARY, async () => {
+            const { data: soundscapes, error: soundscapesError } = await supabaseAdmin.rpc(
+                "filter_soundscapes",
+                {
+                    p_modes: modes,
+                    p_environments: environments,
+                    p_contains: contains,
+                    p_avoids: avoids,
+                    p_animals: animals,
+                    p_instruments: instruments,
+                    p_detail_levels: detailLevels,
+                    p_min_duration_seconds: minDuration.value,
+                    p_max_duration_seconds: maxDuration.value,
+                    p_sort: sort,
+                }
+            )
+
+            if (soundscapesError) {
+                console.error("Get library error:", soundscapesError)
+                throw new CacheReadError(500, "Failed to get library")
+            }
+
+            const rows = Array.isArray(soundscapes) ? soundscapes : []
+            return { soundscapes: rows, result_count: rows.length }
+        })
 
         return res.status(200).json({
             success: true,
-            data: {
-                soundscapes: rows,
-                result_count: rows.length,
-                applied_filters: {
-                    modes,
-                    environments,
-                    contains,
-                    avoids,
-                    animals,
-                    instruments,
-                    detail_levels: detailLevels,
-                    min_duration: minDuration.value,
-                    max_duration: maxDuration.value,
-                    sort,
-                },
-            },
+            data: { ...data, applied_filters: appliedFilters },
         })
     } catch (err) {
+        if (err instanceof CacheReadError) {
+            return res.status(err.statusCode).json({ success: false, error: err.message })
+        }
+
         console.error("Error getting library:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
@@ -288,27 +295,32 @@ export const GetLibrary = async (req: Request, res: Response) => {
 
 export const GetAllSoundscapes = async (_req: Request, res: Response) => {
     try {
-        const { data: soundscapes, error: soundscapesError } = await supabaseAdmin
-            .from("soundscapes")
-            .select("*")
-            .eq("status", "live")
-            .order("sort_score", { ascending: false })
-            .order("title", { ascending: true })
+        const data = await remember("soundscapes:all", CacheTTL.CONTENT, async () => {
+            const { data: soundscapes, error: soundscapesError } = await supabaseAdmin
+                .from("soundscapes")
+                .select("*")
+                .eq("status", "live")
+                .order("sort_score", { ascending: false })
+                .order("title", { ascending: true })
 
-        if (soundscapesError) {
-            console.error("Get soundscapes error:", soundscapesError)
-            return res.status(500).json({ success: false, error: "Failed to get soundscapes" })
+            if (soundscapesError) {
+                console.error("Get soundscapes error:", soundscapesError)
+                throw new CacheReadError(500, "Failed to get soundscapes")
+            }
+
+            const groupedSoundscapes = groupByModeAndSubcategory(
+                (soundscapes || []) as SoundscapeRecord[]
+            )
+
+            return { soundscapes: groupedSoundscapes }
+        })
+
+        return res.status(200).json({ success: true, data })
+    } catch (err) {
+        if (err instanceof CacheReadError) {
+            return res.status(err.statusCode).json({ success: false, error: err.message })
         }
 
-        const groupedSoundscapes = groupByModeAndSubcategory(
-            (soundscapes || []) as SoundscapeRecord[]
-        )
-
-        return res.status(200).json({
-            success: true,
-            data: { soundscapes: groupedSoundscapes },
-        })
-    } catch (err) {
         console.error("Error getting soundscapes:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
@@ -325,31 +337,36 @@ export const GetSoundscapesByMode = async (req: Request, res: Response) => {
     }
 
     try {
-        const { data: soundscapes, error: soundscapesError } = await supabaseAdmin
-            .from("soundscapes")
-            .select("*")
-            .eq("status", "live")
-            .eq("mode", mode)
-            .order("sort_score", { ascending: false })
-            .order("title", { ascending: true })
+        const data = await remember(`soundscapes:mode:${mode}`, CacheTTL.CONTENT, async () => {
+            const { data: soundscapes, error: soundscapesError } = await supabaseAdmin
+                .from("soundscapes")
+                .select("*")
+                .eq("status", "live")
+                .eq("mode", mode)
+                .order("sort_score", { ascending: false })
+                .order("title", { ascending: true })
 
-        if (soundscapesError) {
-            console.error("Get soundscapes by mode error:", soundscapesError)
-            return res.status(500).json({ success: false, error: "Failed to get soundscapes" })
-        }
+            if (soundscapesError) {
+                console.error("Get soundscapes by mode error:", soundscapesError)
+                throw new CacheReadError(500, "Failed to get soundscapes")
+            }
 
-        const groupedSoundscapes = groupBySubcategory(
-            (soundscapes || []) as SoundscapeRecord[]
-        )
+            const groupedSoundscapes = groupBySubcategory(
+                (soundscapes || []) as SoundscapeRecord[]
+            )
 
-        return res.status(200).json({
-            success: true,
-            data: {
+            return {
                 mode,
                 soundscapes: groupedSoundscapes,
-            },
+            }
         })
+
+        return res.status(200).json({ success: true, data })
     } catch (err) {
+        if (err instanceof CacheReadError) {
+            return res.status(err.statusCode).json({ success: false, error: err.message })
+        }
+
         console.error("Error getting soundscapes by mode:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
@@ -359,27 +376,32 @@ export const GetOneSoundscape = async (req: Request, res: Response) => {
     const soundscapeId = String(req.params.id || "").trim()
 
     try {
-        const { data: soundscape, error: soundscapeError } = await supabaseAdmin
-            .from("soundscapes")
-            .select("*")
-            .eq("id", soundscapeId)
-            .eq("status", "live")
-            .maybeSingle()
+        const data = await remember(`soundscape:${soundscapeId.toLowerCase()}:details`, CacheTTL.CONTENT, async () => {
+            const { data: soundscape, error: soundscapeError } = await supabaseAdmin
+                .from("soundscapes")
+                .select("*")
+                .eq("id", soundscapeId)
+                .eq("status", "live")
+                .maybeSingle()
 
-        if (soundscapeError) {
-            console.error("Get soundscape error:", soundscapeError)
-            return res.status(500).json({ success: false, error: "Failed to get soundscape" })
-        }
+            if (soundscapeError) {
+                console.error("Get soundscape error:", soundscapeError)
+                throw new CacheReadError(500, "Failed to get soundscape")
+            }
 
-        if (!soundscape) {
-            return res.status(404).json({ success: false, error: "Soundscape not found" })
-        }
+            if (!soundscape) {
+                throw new CacheReadError(404, "Soundscape not found")
+            }
 
-        return res.status(200).json({
-            success: true,
-            data: { soundscape },
+            return { soundscape }
         })
+
+        return res.status(200).json({ success: true, data })
     } catch (err) {
+        if (err instanceof CacheReadError) {
+            return res.status(err.statusCode).json({ success: false, error: err.message })
+        }
+
         console.error("Error getting soundscape:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
@@ -465,84 +487,89 @@ export const GetSimilarSoundscapes = async (req: Request, res: Response) => {
     const soundscapeId = String(req.params.id || "").trim()
 
     try {
-        const { data: source, error: sourceError } = await supabaseAdmin
-            .from("soundscapes")
-            .select("*")
-            .eq("id", soundscapeId)
-            .eq("status", "live")
-            .maybeSingle()
+        const data = await remember(`soundscape:${soundscapeId.toLowerCase()}:similar`, CacheTTL.CONTENT, async () => {
+            const { data: source, error: sourceError } = await supabaseAdmin
+                .from("soundscapes")
+                .select("*")
+                .eq("id", soundscapeId)
+                .eq("status", "live")
+                .maybeSingle()
 
-        if (sourceError) {
-            console.error("Get similar soundscapes source error:", sourceError)
-            return res.status(500).json({ success: false, error: "Failed to get similar soundscapes" })
-        }
+            if (sourceError) {
+                console.error("Get similar soundscapes source error:", sourceError)
+                throw new CacheReadError(500, "Failed to get similar soundscapes")
+            }
 
-        if (!source) {
-            return res.status(404).json({ success: false, error: "Soundscape not found" })
-        }
+            if (!source) {
+                throw new CacheReadError(404, "Soundscape not found")
+            }
 
-        const { data: candidates, error: candidatesError } = await supabaseAdmin
-            .from("soundscapes")
-            .select("*")
-            .eq("status", "live")
-            .eq("mode", source.mode as string)
-            .neq("id", soundscapeId)
+            const { data: candidates, error: candidatesError } = await supabaseAdmin
+                .from("soundscapes")
+                .select("*")
+                .eq("status", "live")
+                .eq("mode", source.mode as string)
+                .neq("id", soundscapeId)
 
-        if (candidatesError) {
-            console.error("Get similar soundscapes candidates error:", candidatesError)
-            return res.status(500).json({ success: false, error: "Failed to get similar soundscapes" })
-        }
+            if (candidatesError) {
+                console.error("Get similar soundscapes candidates error:", candidatesError)
+                throw new CacheReadError(500, "Failed to get similar soundscapes")
+            }
 
-        const sourceSubcategory = typeof source.subcategory === "string"
-            ? source.subcategory.trim().toLowerCase()
-            : ""
-        const sourceArraySets = SIMILARITY_ARRAY_FIELDS.map((field) =>
-            toLowerStringSet((source as Record<string, unknown>)[field])
-        )
-
-        const scored = ((candidates || []) as SoundscapeRecord[]).map((candidate) => {
-            let score = 0
-
-            const candidateSubcategory = typeof candidate.subcategory === "string"
-                ? candidate.subcategory.trim().toLowerCase()
+            const sourceSubcategory = typeof source.subcategory === "string"
+                ? source.subcategory.trim().toLowerCase()
                 : ""
-            if (sourceSubcategory && candidateSubcategory === sourceSubcategory) {
-                score += 3
-            }
+            const sourceArraySets = SIMILARITY_ARRAY_FIELDS.map((field) =>
+                toLowerStringSet((source as Record<string, unknown>)[field])
+            )
 
-            // Candidates are already filtered to the same mode as the source soundscape
-            score += 1
+            const scored = ((candidates || []) as SoundscapeRecord[]).map((candidate) => {
+                let score = 0
 
-            let sharedElements = 0
-            SIMILARITY_ARRAY_FIELDS.forEach((field, index) => {
-                const candidateSet = toLowerStringSet((candidate as Record<string, unknown>)[field])
-                sharedElements += countSharedElements(sourceArraySets[index], candidateSet)
+                const candidateSubcategory = typeof candidate.subcategory === "string"
+                    ? candidate.subcategory.trim().toLowerCase()
+                    : ""
+                if (sourceSubcategory && candidateSubcategory === sourceSubcategory) {
+                    score += 3
+                }
+
+                // Candidates are already filtered to the same mode as the source soundscape
+                score += 1
+
+                let sharedElements = 0
+                SIMILARITY_ARRAY_FIELDS.forEach((field, index) => {
+                    const candidateSet = toLowerStringSet((candidate as Record<string, unknown>)[field])
+                    sharedElements += countSharedElements(sourceArraySets[index], candidateSet)
+                })
+                score += Math.min(sharedElements, SIMILARITY_ARRAY_BONUS_CAP)
+
+                return { soundscape: candidate, score }
             })
-            score += Math.min(sharedElements, SIMILARITY_ARRAY_BONUS_CAP)
 
-            return { soundscape: candidate, score }
+            scored.sort((a, b) => {
+                if (b.score !== a.score) {
+                    return b.score - a.score
+                }
+
+                const aSortScore = typeof a.soundscape.sort_score === "number" ? a.soundscape.sort_score : 0
+                const bSortScore = typeof b.soundscape.sort_score === "number" ? b.soundscape.sort_score : 0
+                return bSortScore - aSortScore
+            })
+
+            const topMatches = scored.slice(0, 6).map(({ soundscape, score }) => ({
+                ...soundscape,
+                similarity_score: score,
+            }))
+
+            return { soundscapes: topMatches }
         })
 
-        scored.sort((a, b) => {
-            if (b.score !== a.score) {
-                return b.score - a.score
-            }
-
-            const aSortScore = typeof a.soundscape.sort_score === "number" ? a.soundscape.sort_score : 0
-            const bSortScore = typeof b.soundscape.sort_score === "number" ? b.soundscape.sort_score : 0
-            return bSortScore - aSortScore
-        })
-
-        const topMatches = scored.slice(0, 6).map(({ soundscape, score }) => ({
-            ...soundscape,
-            similarity_score: score,
-        }))
-
-        return res.status(200).json({
-            success: true,
-            data: { soundscapes: topMatches },
-        })
+        return res.status(200).json({ success: true, data })
     } catch (err) {
+        if (err instanceof CacheReadError) {
+            return res.status(err.statusCode).json({ success: false, error: err.message })
+        }
+
         console.error("Error getting similar soundscapes:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
@@ -550,22 +577,27 @@ export const GetSimilarSoundscapes = async (req: Request, res: Response) => {
 
 export const GetCollections = async (_req: Request, res: Response) => {
     try {
-        const { data: collections, error: collectionsError } = await supabaseAdmin
-            .from("collections")
-            .select("*")
-            .eq("is_published", true)
-            .order("sort_order", { ascending: true })
+        const data = await remember("collections:all", CacheTTL.CONTENT, async () => {
+            const { data: collections, error: collectionsError } = await supabaseAdmin
+                .from("collections")
+                .select("*")
+                .eq("is_published", true)
+                .order("sort_order", { ascending: true })
 
-        if (collectionsError) {
-            console.error("Get collections error:", collectionsError)
-            return res.status(500).json({ success: false, error: "Failed to get collections" })
+            if (collectionsError) {
+                console.error("Get collections error:", collectionsError)
+                throw new CacheReadError(500, "Failed to get collections")
+            }
+
+            return { collections: collections || [] }
+        })
+
+        return res.status(200).json({ success: true, data })
+    } catch (err) {
+        if (err instanceof CacheReadError) {
+            return res.status(err.statusCode).json({ success: false, error: err.message })
         }
 
-        return res.status(200).json({
-            success: true,
-            data: { collections: collections || [] },
-        })
-    } catch (err) {
         console.error("Error getting collections:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
@@ -575,72 +607,77 @@ export const GetOneCollection = async (req: Request, res: Response) => {
     const collectionId = String(req.params.id || "").trim()
 
     try {
-        const { data: collection, error: collectionError } = await supabaseAdmin
-            .from("collections")
-            .select("*")
-            .eq("id", collectionId)
-            .eq("is_published", true)
-            .maybeSingle()
-
-        if (collectionError) {
-            console.error("Get collection error:", collectionError)
-            return res.status(500).json({ success: false, error: "Failed to get collection" })
-        }
-
-        if (!collection) {
-            return res.status(404).json({ success: false, error: "Collection not found" })
-        }
-
-        const { data: membershipRows, error: membershipError } = await supabaseAdmin
-            .from("collection_soundscapes")
-            .select("soundscape_id, sort_order")
-            .eq("collection_id", collectionId)
-            .order("sort_order", { ascending: true })
-
-        if (membershipError) {
-            console.error("Get collection soundscape memberships error:", membershipError)
-            return res.status(500).json({ success: false, error: "Failed to get collection" })
-        }
-
-        const memberships = (membershipRows || []) as CollectionMembership[]
-        const soundscapeIds = memberships
-            .map((membership) => String(membership.soundscape_id || "").trim())
-            .filter((id): id is string => id.length > 0)
-
-        let orderedSoundscapes: SoundscapeRecord[] = []
-
-        if (soundscapeIds.length > 0) {
-            const { data: soundscapes, error: soundscapesError } = await supabaseAdmin
-                .from("soundscapes")
+        const data = await remember(`collection:${collectionId.toLowerCase()}`, CacheTTL.CONTENT, async () => {
+            const { data: collection, error: collectionError } = await supabaseAdmin
+                .from("collections")
                 .select("*")
-                .eq("status", "live")
-                .in("id", soundscapeIds)
+                .eq("id", collectionId)
+                .eq("is_published", true)
+                .maybeSingle()
 
-            if (soundscapesError) {
-                console.error("Get collection soundscapes error:", soundscapesError)
-                return res.status(500).json({ success: false, error: "Failed to get collection" })
+            if (collectionError) {
+                console.error("Get collection error:", collectionError)
+                throw new CacheReadError(500, "Failed to get collection")
             }
 
-            const soundscapeById = new Map(
-                ((soundscapes || []) as SoundscapeRecord[])
-                    .map((soundscape) => [String(soundscape.id), soundscape])
-            )
+            if (!collection) {
+                throw new CacheReadError(404, "Collection not found")
+            }
 
-            orderedSoundscapes = soundscapeIds
-                .map((soundscapeId) => soundscapeById.get(soundscapeId))
-                .filter((soundscape): soundscape is SoundscapeRecord => Boolean(soundscape))
-        }
+            const { data: membershipRows, error: membershipError } = await supabaseAdmin
+                .from("collection_soundscapes")
+                .select("soundscape_id, sort_order")
+                .eq("collection_id", collectionId)
+                .order("sort_order", { ascending: true })
 
-        return res.status(200).json({
-            success: true,
-            data: {
+            if (membershipError) {
+                console.error("Get collection soundscape memberships error:", membershipError)
+                throw new CacheReadError(500, "Failed to get collection")
+            }
+
+            const memberships = (membershipRows || []) as CollectionMembership[]
+            const soundscapeIds = memberships
+                .map((membership) => String(membership.soundscape_id || "").trim())
+                .filter((id): id is string => id.length > 0)
+
+            let orderedSoundscapes: SoundscapeRecord[] = []
+
+            if (soundscapeIds.length > 0) {
+                const { data: soundscapes, error: soundscapesError } = await supabaseAdmin
+                    .from("soundscapes")
+                    .select("*")
+                    .eq("status", "live")
+                    .in("id", soundscapeIds)
+
+                if (soundscapesError) {
+                    console.error("Get collection soundscapes error:", soundscapesError)
+                    throw new CacheReadError(500, "Failed to get collection")
+                }
+
+                const soundscapeById = new Map(
+                    ((soundscapes || []) as SoundscapeRecord[])
+                        .map((soundscape) => [String(soundscape.id), soundscape])
+                )
+
+                orderedSoundscapes = soundscapeIds
+                    .map((soundscapeId) => soundscapeById.get(soundscapeId))
+                    .filter((soundscape): soundscape is SoundscapeRecord => Boolean(soundscape))
+            }
+
+            return {
                 collection: {
                     ...collection,
                     soundscapes: orderedSoundscapes,
                 },
-            },
+            }
         })
+
+        return res.status(200).json({ success: true, data })
     } catch (err) {
+        if (err instanceof CacheReadError) {
+            return res.status(err.statusCode).json({ success: false, error: err.message })
+        }
+
         console.error("Error getting collection:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
@@ -661,34 +698,42 @@ const EXPLORE_GROUPS_ORDER = [
 // later alongside real soundscape data (see WP-6 scope note).
 export const GetExploreGroups = async (_req: Request, res: Response) => {
     try {
-        const { data: collections, error } = await supabaseAdmin
-            .from("collections")
-            .select("*")
-            .eq("is_published", true)
-            .not("explore_group", "is", null)
-            .order("sort_order", { ascending: true })
-            .order("title", { ascending: true })
+        const data = await remember("explore:groups", CacheTTL.CONTENT, async () => {
+            const { data: collections, error } = await supabaseAdmin
+                .from("collections")
+                .select("*")
+                .eq("is_published", true)
+                .not("explore_group", "is", null)
+                .order("sort_order", { ascending: true })
+                .order("title", { ascending: true })
 
-        if (error) {
-            console.error("Get explore groups error:", error)
-            return res.status(500).json({ success: false, error: "Failed to get explore groups" })
-        }
-
-        const grouped = new Map<string, Record<string, unknown>[]>()
-        for (const collection of collections || []) {
-            const group = String((collection as Record<string, unknown>).explore_group)
-            if (!grouped.has(group)) {
-                grouped.set(group, [])
+            if (error) {
+                console.error("Get explore groups error:", error)
+                throw new CacheReadError(500, "Failed to get explore groups")
             }
-            grouped.get(group)!.push(collection)
+
+            const grouped = new Map<string, Record<string, unknown>[]>()
+            for (const collection of collections || []) {
+                const group = String((collection as Record<string, unknown>).explore_group)
+                if (!grouped.has(group)) {
+                    grouped.set(group, [])
+                }
+                grouped.get(group)!.push(collection)
+            }
+
+            const groups = EXPLORE_GROUPS_ORDER
+                .filter((group) => grouped.has(group))
+                .map((group) => ({ group, collections: grouped.get(group)! }))
+
+            return { groups }
+        })
+
+        return res.status(200).json({ success: true, data })
+    } catch (err) {
+        if (err instanceof CacheReadError) {
+            return res.status(err.statusCode).json({ success: false, error: err.message })
         }
 
-        const groups = EXPLORE_GROUPS_ORDER
-            .filter((group) => grouped.has(group))
-            .map((group) => ({ group, collections: grouped.get(group)! }))
-
-        return res.status(200).json({ success: true, data: { groups } })
-    } catch (err) {
         console.error("Error getting explore groups:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
@@ -698,117 +743,122 @@ const POPULAR_COLLECTIONS_LIMIT = 10
 
 export const GetPopularCollections = async (_req: Request, res: Response) => {
     try {
-        const { data: collections, error: collectionsError } = await supabaseAdmin
-            .from("collections")
-            .select("*")
-            .eq("is_published", true)
+        const data = await remember("collections:popular", CacheTTL.CONTENT, async () => {
+            const { data: collections, error: collectionsError } = await supabaseAdmin
+                .from("collections")
+                .select("*")
+                .eq("is_published", true)
 
-        if (collectionsError) {
-            console.error("Get popular collections error:", collectionsError)
-            return res.status(500).json({ success: false, error: "Failed to get popular collections" })
-        }
-
-        const collectionRows = collections || []
-
-        if (collectionRows.length === 0) {
-            return res.status(200).json({ success: true, data: { collections: [] } })
-        }
-
-        const collectionIds = collectionRows.map((collection) => String(collection.id))
-
-        const { data: memberships, error: membershipsError } = await supabaseAdmin
-            .from("collection_soundscapes")
-            .select("collection_id, soundscape_id")
-            .in("collection_id", collectionIds)
-
-        if (membershipsError) {
-            console.error("Get popular collections memberships error:", membershipsError)
-            return res.status(500).json({ success: false, error: "Failed to get popular collections" })
-        }
-
-        const membershipRows = memberships || []
-        const allSoundscapeIds = [...new Set(membershipRows.map((row) => String(row.soundscape_id)))]
-
-        let liveIds = new Set<string>()
-        const playCounts = new Map<string, number>()
-        const favouriteCounts = new Map<string, number>()
-
-        if (allSoundscapeIds.length > 0) {
-            const [liveResult, playResult, favouriteResult] = await Promise.all([
-                supabaseAdmin
-                    .from("soundscapes")
-                    .select("id")
-                    .eq("status", "live")
-                    .in("id", allSoundscapeIds),
-                supabaseAdmin
-                    .from("user_play_history")
-                    .select("soundscape_id")
-                    .in("soundscape_id", allSoundscapeIds),
-                supabaseAdmin
-                    .from("user_favourites")
-                    .select("soundscape_id")
-                    .in("soundscape_id", allSoundscapeIds),
-            ])
-
-            const firstError = liveResult.error || playResult.error || favouriteResult.error
-            if (firstError) {
-                console.error("Get popular collections signal error:", firstError)
-                return res.status(500).json({ success: false, error: "Failed to get popular collections" })
+            if (collectionsError) {
+                console.error("Get popular collections error:", collectionsError)
+                throw new CacheReadError(500, "Failed to get popular collections")
             }
 
-            liveIds = new Set((liveResult.data || []).map((row) => String(row.id)))
+            const collectionRows = collections || []
 
-            for (const row of playResult.data || []) {
-                const id = String(row.soundscape_id)
-                playCounts.set(id, (playCounts.get(id) || 0) + 1)
+            if (collectionRows.length === 0) {
+                return { collections: [] }
             }
 
-            for (const row of favouriteResult.data || []) {
-                const id = String(row.soundscape_id)
-                favouriteCounts.set(id, (favouriteCounts.get(id) || 0) + 1)
+            const collectionIds = collectionRows.map((collection) => String(collection.id))
+
+            const { data: memberships, error: membershipsError } = await supabaseAdmin
+                .from("collection_soundscapes")
+                .select("collection_id, soundscape_id")
+                .in("collection_id", collectionIds)
+
+            if (membershipsError) {
+                console.error("Get popular collections memberships error:", membershipsError)
+                throw new CacheReadError(500, "Failed to get popular collections")
             }
-        }
 
-        const liveMemberIdsByCollection = new Map<string, string[]>()
-        for (const row of membershipRows) {
-            const soundscapeId = String(row.soundscape_id)
-            if (!liveIds.has(soundscapeId)) {
-                continue
+            const membershipRows = memberships || []
+            const allSoundscapeIds = [...new Set(membershipRows.map((row) => String(row.soundscape_id)))]
+
+            let liveIds = new Set<string>()
+            const playCounts = new Map<string, number>()
+            const favouriteCounts = new Map<string, number>()
+
+            if (allSoundscapeIds.length > 0) {
+                const [liveResult, playResult, favouriteResult] = await Promise.all([
+                    supabaseAdmin
+                        .from("soundscapes")
+                        .select("id")
+                        .eq("status", "live")
+                        .in("id", allSoundscapeIds),
+                    supabaseAdmin
+                        .from("user_play_history")
+                        .select("soundscape_id")
+                        .in("soundscape_id", allSoundscapeIds),
+                    supabaseAdmin
+                        .from("user_favourites")
+                        .select("soundscape_id")
+                        .in("soundscape_id", allSoundscapeIds),
+                ])
+
+                const firstError = liveResult.error || playResult.error || favouriteResult.error
+                if (firstError) {
+                    console.error("Get popular collections signal error:", firstError)
+                    throw new CacheReadError(500, "Failed to get popular collections")
+                }
+
+                liveIds = new Set((liveResult.data || []).map((row) => String(row.id)))
+
+                for (const row of playResult.data || []) {
+                    const id = String(row.soundscape_id)
+                    playCounts.set(id, (playCounts.get(id) || 0) + 1)
+                }
+
+                for (const row of favouriteResult.data || []) {
+                    const id = String(row.soundscape_id)
+                    favouriteCounts.set(id, (favouriteCounts.get(id) || 0) + 1)
+                }
             }
 
-            const collectionId = String(row.collection_id)
-            if (!liveMemberIdsByCollection.has(collectionId)) {
-                liveMemberIdsByCollection.set(collectionId, [])
+            const liveMemberIdsByCollection = new Map<string, string[]>()
+            for (const row of membershipRows) {
+                const soundscapeId = String(row.soundscape_id)
+                if (!liveIds.has(soundscapeId)) {
+                    continue
+                }
+
+                const collectionId = String(row.collection_id)
+                if (!liveMemberIdsByCollection.has(collectionId)) {
+                    liveMemberIdsByCollection.set(collectionId, [])
+                }
+                liveMemberIdsByCollection.get(collectionId)!.push(soundscapeId)
             }
-            liveMemberIdsByCollection.get(collectionId)!.push(soundscapeId)
-        }
 
-        const collectionsWithScore = collectionRows.map((collection) => {
-            const memberIds = liveMemberIdsByCollection.get(String(collection.id)) || []
-            const popularityScore = memberIds.reduce(
-                (sum, soundscapeId) =>
-                    sum + (playCounts.get(soundscapeId) || 0) + (favouriteCounts.get(soundscapeId) || 0),
-                0
-            )
+            const collectionsWithScore = collectionRows.map((collection) => {
+                const memberIds = liveMemberIdsByCollection.get(String(collection.id)) || []
+                const popularityScore = memberIds.reduce(
+                    (sum, soundscapeId) =>
+                        sum + (playCounts.get(soundscapeId) || 0) + (favouriteCounts.get(soundscapeId) || 0),
+                    0
+                )
 
-            return { ...collection, popularity_score: popularityScore }
+                return { ...collection, popularity_score: popularityScore }
+            })
+
+            collectionsWithScore.sort((a, b) => {
+                if (b.popularity_score !== a.popularity_score) {
+                    return b.popularity_score - a.popularity_score
+                }
+
+                const aSortOrder = typeof a.sort_order === "number" ? a.sort_order : 0
+                const bSortOrder = typeof b.sort_order === "number" ? b.sort_order : 0
+                return aSortOrder - bSortOrder
+            })
+
+            return { collections: collectionsWithScore.slice(0, POPULAR_COLLECTIONS_LIMIT) }
         })
 
-        collectionsWithScore.sort((a, b) => {
-            if (b.popularity_score !== a.popularity_score) {
-                return b.popularity_score - a.popularity_score
-            }
-
-            const aSortOrder = typeof a.sort_order === "number" ? a.sort_order : 0
-            const bSortOrder = typeof b.sort_order === "number" ? b.sort_order : 0
-            return aSortOrder - bSortOrder
-        })
-
-        return res.status(200).json({
-            success: true,
-            data: { collections: collectionsWithScore.slice(0, POPULAR_COLLECTIONS_LIMIT) },
-        })
+        return res.status(200).json({ success: true, data })
     } catch (err) {
+        if (err instanceof CacheReadError) {
+            return res.status(err.statusCode).json({ success: false, error: err.message })
+        }
+
         console.error("Error getting popular collections:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }

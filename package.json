@@ -8,7 +8,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "nodemon --watch server.ts --watch Config --watch Controller --watch Routes --ext ts --exec \"ts-node --esm --transpile-only server.ts\""
+    "dev": "nodemon --watch server.ts --watch Config --watch Controller --watch Routes --ext ts --exec \"ts-node --esm --transpile-only server.ts\"",
+    "test:cache": "node --experimental-vm-modules --test Tests/cache.test.mjs"
   },
   "keywords": [],
   "author": "",

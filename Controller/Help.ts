@@ -1,3 +1,4 @@
+import { remember, CacheTTL, CacheReadError, invalidateHelp } from "../Utils/CacheHelper.ts"
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 
@@ -100,25 +101,62 @@ const groupByCategory = (articles: HelpArticleRow[]) => {
 
 // --- Public routes ---
 
-export const GetHelpArticles = async (_req: Request, res: Response) => {
-    try {
-        const { data: articles, error } = await supabaseAdmin
-            .from("help_articles")
-            .select("slug, category, title, sort_order")
-            .eq("is_published", true)
-            .order("category", { ascending: true })
-            .order("sort_order", { ascending: true })
+/**
+ * Reads the optional search term from `?q=` (or `?search=` as an alias).
+ *
+ * The term is stripped of the characters that would otherwise break PostgREST's
+ * `or=(...)` grammar or act as LIKE wildcards — `% _ " \ , ( )` — rather than
+ * escaped, because a help search never legitimately contains them and dropping
+ * them cannot change the meaning of a real query. Returns "" when no usable
+ * term was supplied, which means "no filter".
+ */
+const getHelpSearchTerm = (req: Request): string => {
+    const raw = req.query.q ?? req.query.search
 
-        if (error) {
-            console.error("Get help articles error:", error)
-            return res.status(500).json({ success: false, error: "Failed to get help articles" })
+    if (typeof raw !== "string") {
+        return ""
+    }
+
+    return raw.replace(/[%_"\\,()]/g, " ").trim()
+}
+
+export const GetHelpArticles = async (req: Request, res: Response) => {
+    const searchTerm = getHelpSearchTerm(req)
+
+    try {
+        const data = await remember(searchTerm ? null : "help:all", CacheTTL.CONTENT, async () => {
+            let query = supabaseAdmin
+                .from("help_articles")
+                .select("slug, category, title, sort_order")
+                .eq("is_published", true)
+
+            // Absent or unusable term leaves the query exactly as it was before, so
+            // the endpoint's default behaviour is unchanged.
+            if (searchTerm) {
+                const pattern = `%${searchTerm}%`
+                query = query.or(
+                    `title.ilike."${pattern}",category.ilike."${pattern}",body.ilike."${pattern}"`
+                )
+            }
+
+            const { data: articles, error } = await query
+                .order("category", { ascending: true })
+                .order("sort_order", { ascending: true })
+
+            if (error) {
+                console.error("Get help articles error:", error)
+                throw new CacheReadError(500, "Failed to get help articles")
+            }
+
+            return { categories: groupByCategory((articles || []) as HelpArticleRow[]) }
+        })
+
+        return res.status(200).json({ success: true, data })
+    } catch (err) {
+        if (err instanceof CacheReadError) {
+            return res.status(err.statusCode).json({ success: false, error: err.message })
         }
 
-        return res.status(200).json({
-            success: true,
-            data: { categories: groupByCategory((articles || []) as HelpArticleRow[]) },
-        })
-    } catch (err) {
         console.error("Error getting help articles:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
@@ -128,24 +166,34 @@ export const GetHelpArticle = async (req: Request, res: Response) => {
     const slug = String(req.params.slug || "").trim()
 
     try {
-        const { data: article, error } = await supabaseAdmin
-            .from("help_articles")
-            .select("*")
-            .eq("slug", slug)
-            .eq("is_published", true)
-            .maybeSingle()
+        // Reserve help:all for the list; an article can also have the slug "all".
+        const key = slug === "all" ? "help:article:all" : `help:${encodeURIComponent(slug)}`
+        const data = await remember(key, CacheTTL.CONTENT, async () => {
+            const { data: article, error } = await supabaseAdmin
+                .from("help_articles")
+                .select("*")
+                .eq("slug", slug)
+                .eq("is_published", true)
+                .maybeSingle()
 
-        if (error) {
-            console.error("Get help article error:", error)
-            return res.status(500).json({ success: false, error: "Failed to get help article" })
-        }
+            if (error) {
+                console.error("Get help article error:", error)
+                throw new CacheReadError(500, "Failed to get help article")
+            }
 
-        if (!article) {
-            return res.status(404).json({ success: false, error: "Help article not found" })
-        }
+            if (!article) {
+                throw new CacheReadError(404, "Help article not found")
+            }
 
-        return res.status(200).json({ success: true, data: { article } })
+            return { article }
+        })
+
+        return res.status(200).json({ success: true, data })
     } catch (err) {
+        if (err instanceof CacheReadError) {
+            return res.status(err.statusCode).json({ success: false, error: err.message })
+        }
+
         console.error("Error getting help article:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
@@ -185,6 +233,8 @@ export const CreateAdminHelpArticle = async (req: Request, res: Response) => {
             console.error("Create admin help article error:", error)
             return res.status(500).json({ success: false, error: "Failed to create help article" })
         }
+
+        await invalidateHelp()
 
         return res.status(201).json({ success: true, data: { article } })
     } catch (err) {
@@ -281,6 +331,8 @@ export const UpdateAdminHelpArticle = async (req: Request, res: Response) => {
             return res.status(404).json({ success: false, error: "Help article not found" })
         }
 
+        await invalidateHelp()
+
         return res.status(200).json({ success: true, data: { article } })
     } catch (err) {
         console.error("Error updating admin help article:", err)
@@ -313,6 +365,8 @@ export const PublishAdminHelpArticle = async (req: Request, res: Response) => {
             return res.status(404).json({ success: false, error: "Help article not found" })
         }
 
+        await invalidateHelp()
+
         return res.status(200).json({ success: true, data: { article } })
     } catch (err) {
         console.error("Error publishing admin help article:", err)
@@ -339,6 +393,8 @@ export const DeleteAdminHelpArticle = async (req: Request, res: Response) => {
         if (!deleted) {
             return res.status(404).json({ success: false, error: "Help article not found" })
         }
+
+        await invalidateHelp()
 
         return res.status(200).json({
             success: true,

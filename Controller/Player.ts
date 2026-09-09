@@ -1,3 +1,4 @@
+import { invalidateUser } from "../Utils/CacheHelper.ts"
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 
@@ -113,6 +114,8 @@ export const UpsertPlayerState = async (req: Request, res: Response) => {
             console.error("Upsert player state error:", playerStateError)
             return res.status(500).json({ success: false, error: "Failed to save player state" })
         }
+
+        await invalidateUser(req.user!.id, ["continue-listening"])
 
         return res.status(200).json({ success: true, data: { player_state: playerState } })
     } catch (err) {

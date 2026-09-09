@@ -3,9 +3,11 @@ import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
 import {
     GetDownloadPreferences,
     GetPlaybackPreferences,
+    GetPrivacyPreferences,
     GetSoundPreferences,
     UpdateDownloadPreferences,
     UpdatePlaybackPreferences,
+    UpdatePrivacyPreferences,
     UpdateSoundPreferences,
 } from "../Controller/Preferences.ts"
 
@@ -209,5 +211,59 @@ PreferencesRoutes.get("/preferences/downloads", AuthMiddleware, GetDownloadPrefe
  *         description: Server error
  */
 PreferencesRoutes.put("/preferences/downloads", AuthMiddleware, UpdateDownloadPreferences)
+
+/**
+ * @swagger
+ * /api/preferences/privacy:
+ *   get:
+ *     tags:
+ *       - Preferences
+ *     summary: Get the current user's privacy settings
+ *     description: >
+ *       Returns data.settings with analytics_enabled, the user's consent for
+ *       anonymous usage analytics. Off by default. While false, authenticated
+ *       events posted to /api/analytics/events are accepted and discarded.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: Privacy settings returned successfully
+ *       '401':
+ *         description: Invalid or missing session
+ *       '500':
+ *         description: Server error
+ */
+PreferencesRoutes.get("/preferences/privacy", AuthMiddleware, GetPrivacyPreferences)
+
+/**
+ * @swagger
+ * /api/preferences/privacy:
+ *   put:
+ *     tags:
+ *       - Preferences
+ *     summary: Set the current user's analytics consent
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [analytics_enabled]
+ *             properties:
+ *               analytics_enabled:
+ *                 type: boolean
+ *     responses:
+ *       '200':
+ *         description: Privacy settings updated successfully
+ *       '400':
+ *         description: Missing or non-boolean analytics_enabled
+ *       '401':
+ *         description: Invalid or missing session
+ *       '500':
+ *         description: Server error
+ */
+PreferencesRoutes.put("/preferences/privacy", AuthMiddleware, UpdatePrivacyPreferences)
 
 export default PreferencesRoutes

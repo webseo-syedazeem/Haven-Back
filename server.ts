@@ -141,7 +141,7 @@ const renderPrivacyPolicyPage = (markdown: string) => {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Halcyon Mind Privacy Policy</title>
+  <title>Halcyon Privacy Policy</title>
   <style>
     :root {
       color-scheme: light;

@@ -1,3 +1,6 @@
+import {
+    remember, CacheTTL, CacheReadError, userCacheKey, invalidateUser, invalidateContent,
+} from "../Utils/CacheHelper.ts"
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 
@@ -94,6 +97,9 @@ export const AddPlayHistory = async (req: Request, res: Response) => {
             return res.status(500).json({ success: false, error: "Failed to record play history" })
         }
 
+        await invalidateUser(req.user!.id, ["play-history", "continue-listening", "recommendations", "home-recommended"])
+        await invalidateContent({ keys: ["collections:popular"] })
+
         return res.status(200).json({
             success: true,
             data: { play_history: historyEntry },
@@ -106,32 +112,37 @@ export const AddPlayHistory = async (req: Request, res: Response) => {
 
 export const GetPlayHistory = async (req: Request, res: Response) => {
     try {
-        const user = req.user!
-        const { data: userProfile, error: profileError } = await getUserProfileId(user.id)
+        const data = await remember(userCacheKey(req.user?.id, "play-history"), CacheTTL.USER, async () => {
+            const user = req.user!
+            const { data: userProfile, error: profileError } = await getUserProfileId(user.id)
 
-        if (profileError || !userProfile) {
-            console.error("Get play history profile error:", profileError)
-            return res.status(401).json({ success: false, error: "User profile not found" })
-        }
+            if (profileError || !userProfile) {
+                console.error("Get play history profile error:", profileError)
+                throw new CacheReadError(401, "User profile not found")
+            }
 
-        const { data: playHistory, error: historyError } = await supabaseAdmin
-            .from("user_play_history")
-            .select("id, user_id, soundscape_id, played_at, soundscape:soundscapes!inner(*)")
-            .eq("user_id", userProfile.id)
-            .eq("soundscape.status", "live")
-            .order("played_at", { ascending: false })
-            .limit(50)
+            const { data: playHistory, error: historyError } = await supabaseAdmin
+                .from("user_play_history")
+                .select("id, user_id, soundscape_id, played_at, soundscape:soundscapes!inner(*)")
+                .eq("user_id", userProfile.id)
+                .eq("soundscape.status", "live")
+                .order("played_at", { ascending: false })
+                .limit(50)
 
-        if (historyError) {
-            console.error("Get play history error:", historyError)
-            return res.status(500).json({ success: false, error: "Failed to get play history" })
-        }
+            if (historyError) {
+                console.error("Get play history error:", historyError)
+                throw new CacheReadError(500, "Failed to get play history")
+            }
 
-        return res.status(200).json({
-            success: true,
-            data: { play_history: playHistory || [] },
+            return { play_history: playHistory || [] }
         })
+
+        return res.status(200).json({ success: true, data })
     } catch (err) {
+        if (err instanceof CacheReadError) {
+            return res.status(err.statusCode).json({ success: false, error: err.message })
+        }
+
         console.error("Error getting play history:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }

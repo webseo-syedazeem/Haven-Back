@@ -1,3 +1,4 @@
+import { invalidatePreferences } from "../Utils/CacheHelper.ts"
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 import { SOUND_PREFERENCE_DEFAULTS, validateSoundPreferencesBody } from "./Preferences.ts"
@@ -114,75 +115,41 @@ export const PostOnboarding = async (req: Request, res: Response) => {
             return
         }
 
-        const { data: onboarding, error: onboardingError } = await supabaseAdmin
-            .from("user_onboarding")
-            .upsert({
-                user_id: userId,
-                goals: goals.value,
-                starting_mode: body.starting_mode,
-                situation,
-                completed: true,
-                completed_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-            }, { onConflict: "user_id" })
-            .select("*")
-            .single()
+        const completedAt = new Date().toISOString()
+        const { data: savedOnboarding, error: saveError } = await supabaseAdmin.rpc(
+            "save_user_onboarding_completion",
+            {
+                p_user_id: userId,
+                p_goals: goals.value,
+                p_starting_mode: body.starting_mode,
+                p_situation: situation,
+                p_completed_at: completedAt,
+                p_preference_updates: preferencesValidated.updates,
+            }
+        )
 
-        if (onboardingError) {
-            console.error("Upsert onboarding error:", onboardingError)
+        if (saveError) {
+            console.error("Save onboarding completion error:", saveError)
             return res.status(500).json({ success: false, error: "Failed to save onboarding" })
         }
 
-        let preferences: Record<string, unknown> | null = null
-
-        if (Object.keys(preferencesValidated.updates).length > 0) {
-            const { data: existingPreferences, error: existingPreferencesError } = await supabaseAdmin
-                .from("user_sound_preferences")
-                .select("*")
-                .eq("user_id", userId)
-                .maybeSingle()
-
-            if (existingPreferencesError) {
-                console.error("Find sound preferences for onboarding error:", existingPreferencesError)
-                return res.status(500).json({ success: false, error: "Failed to save onboarding preferences" })
-            }
-
-            const { data: updatedPreferences, error: preferencesError } = await supabaseAdmin
-                .from("user_sound_preferences")
-                .upsert({
-                    ...SOUND_PREFERENCE_DEFAULTS,
-                    ...(existingPreferences || {}),
-                    ...preferencesValidated.updates,
-                    user_id: userId,
-                    updated_at: new Date().toISOString(),
-                }, { onConflict: "user_id" })
-                .select("*")
-                .single()
-
-            if (preferencesError) {
-                console.error("Upsert onboarding preferences error:", preferencesError)
-                return res.status(500).json({ success: false, error: "Failed to save onboarding preferences" })
-            }
-
-            preferences = updatedPreferences
-        } else {
-            const { data: currentPreferences, error: currentPreferencesError } = await supabaseAdmin
-                .from("user_sound_preferences")
-                .select("*")
-                .eq("user_id", userId)
-                .maybeSingle()
-
-            if (currentPreferencesError) {
-                console.error("Get onboarding preferences error:", currentPreferencesError)
-                return res.status(500).json({ success: false, error: "Failed to save onboarding" })
-            }
-
-            preferences = currentPreferences || {
-                user_id: userId,
-                ...SOUND_PREFERENCE_DEFAULTS,
-                updated_at: null,
-            }
+        const saved = savedOnboarding as {
+            onboarding?: Record<string, unknown>
+            preferences?: Record<string, unknown> | null
+        } | null
+        const onboarding = saved?.onboarding
+        const preferences = saved?.preferences || {
+            user_id: userId,
+            ...SOUND_PREFERENCE_DEFAULTS,
+            updated_at: null,
         }
+
+        if (!onboarding) {
+            console.error("Save onboarding completion returned no onboarding row")
+            return res.status(500).json({ success: false, error: "Failed to save onboarding" })
+        }
+
+        await invalidatePreferences(req.user!.id)
 
         return res.status(200).json({ success: true, data: { onboarding, preferences } })
     } catch (err) {

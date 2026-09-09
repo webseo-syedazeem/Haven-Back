@@ -31,6 +31,23 @@ const requireAdmin = [AuthMiddleware, AdminAuthMiddleware] as const
  *     tags:
  *       - Help
  *     summary: Get published help articles grouped by category
+ *     description: >
+ *       Returns every published article grouped by category. Supply the optional
+ *       q (or search) parameter to filter server-side on title, category or body
+ *       with case-insensitive matching. Omit it and the response is unchanged.
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Optional case-insensitive search term.
+ *       - in: query
+ *         name: search
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Alias for q, used when q is absent.
  *     responses:
  *       '200':
  *         description: Help categories returned successfully

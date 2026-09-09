@@ -79,6 +79,13 @@ SupportRoutes.post("/support/contact", OptionalAuthMiddleware, ContactSupport)
  *                 format: uuid
  *               message:
  *                 type: string
+ *               reason:
+ *                 type: string
+ *                 nullable: true
+ *                 description: >
+ *                   Optional structured reason for the report, stored in its own
+ *                   column (e.g. "Audio cuts out", "Wrong sounds", "Poor quality",
+ *                   "Won't play"). Independent of message, which is unchanged.
  *               contact_email:
  *                 type: string
  *                 format: email

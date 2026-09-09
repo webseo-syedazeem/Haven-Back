@@ -67,27 +67,44 @@ const normalizeEvent = (raw: unknown): { event?: NormalizedEvent; error?: string
     }
 }
 
-const resolveOptionalUserId = async (req: Request): Promise<AppUserId | null> => {
+type ResolvedSender = {
+    userId: AppUserId | null
+    /**
+     * False only for an identified user who has analytics switched off. An
+     * anonymous sender has no consent record to check, so it stays true and the
+     * client's own gate remains the control for guest events.
+     */
+    consented: boolean
+}
+
+const resolveSender = async (req: Request): Promise<ResolvedSender> => {
     if (!req.user?.id) {
-        return null
+        return { userId: null, consented: true }
     }
 
     try {
         const { data: userProfile, error } = await supabaseAdmin
             .from("users")
-            .select("id")
+            .select("id, analytics_enabled")
             .eq("auth_user_id", req.user.id)
             .maybeSingle()
 
         if (error) {
             console.error("Analytics optional user lookup error:", error)
-            return null
+            return { userId: null, consented: true }
         }
 
-        return (userProfile?.id as AppUserId | undefined) ?? null
+        if (!userProfile) {
+            return { userId: null, consented: true }
+        }
+
+        return {
+            userId: (userProfile.id as AppUserId | undefined) ?? null,
+            consented: userProfile.analytics_enabled === true,
+        }
     } catch (err) {
         console.error("Analytics optional user lookup failed:", err)
-        return null
+        return { userId: null, consented: true }
     }
 }
 
@@ -135,7 +152,25 @@ export const LogAnalyticsEvents = async (req: Request, res: Response) => {
     }
 
     try {
-        const userId = await resolveOptionalUserId(req)
+        const sender = await resolveSender(req)
+
+        // Server-enforced opt-out: a signed-in user who has analytics off has
+        // their events dropped here rather than written. The response stays a
+        // 200 success so the client never surfaces an error for honouring the
+        // user's own choice.
+        if (!sender.consented) {
+            return res.status(200).json({
+                success: true,
+                data: {
+                    logged: 0,
+                    events: [],
+                    skipped: normalizedEvents.length,
+                    reason: "analytics_disabled",
+                },
+            })
+        }
+
+        const userId = sender.userId
         const rows = normalizedEvents.map((event) => ({
             user_id: userId,
             session_id: event.session_id,

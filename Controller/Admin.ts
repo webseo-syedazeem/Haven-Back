@@ -1,3 +1,4 @@
+import { invalidateSoundscapes, invalidateCollection } from "../Utils/CacheHelper.ts"
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 
@@ -427,6 +428,8 @@ export const CreateAdminSoundscape = async (req: Request, res: Response) => {
             return res.status(500).json({ success: false, error: "Failed to create soundscape" })
         }
 
+        await invalidateSoundscapes()
+
         return res.status(201).json({ success: true, data: { soundscape } })
     } catch (err) {
         console.error("Error creating admin soundscape:", err)
@@ -565,6 +568,7 @@ export const UpdateAdminSoundscape = async (req: Request, res: Response) => {
                 return res.status(500).json({ success: false, error: "Failed to update soundscape" })
             }
 
+            await invalidateSoundscapes()
             soundscape = data
         } else if (!statusWasSupplied) {
             return res.status(400).json({
@@ -612,6 +616,8 @@ export const UpdateAdminSoundscapeStatus = async (req: Request, res: Response) =
         if (!soundscape) {
             return res.status(404).json({ success: false, error: "Soundscape not found" })
         }
+
+        await invalidateSoundscapes()
 
         return res.status(200).json({ success: true, data: { soundscape } })
     } catch (err) {
@@ -673,6 +679,8 @@ export const DeleteAdminSoundscape = async (req: Request, res: Response) => {
             })
         }
 
+        await invalidateSoundscapes()
+
         return res.status(200).json({
             success: true,
             data: { message: "Soundscape deleted successfully" },
@@ -731,6 +739,8 @@ export const ReviseAdminSoundscape = async (req: Request, res: Response) => {
             console.error("Revise admin soundscape error:", error)
             return res.status(500).json({ success: false, error: "Failed to revise soundscape" })
         }
+
+        await invalidateSoundscapes()
 
         return res.status(201).json({
             success: true,
@@ -920,6 +930,8 @@ export const CreateAdminCollection = async (req: Request, res: Response) => {
             return res.status(500).json({ success: false, error: "Failed to create collection" })
         }
 
+        await invalidateCollection(String(collection.id))
+
         return res.status(201).json({ success: true, data: { collection } })
     } catch (err) {
         console.error("Error creating admin collection:", err)
@@ -1100,6 +1112,8 @@ export const UpdateAdminCollection = async (req: Request, res: Response) => {
             return res.status(404).json({ success: false, error: "Collection not found" })
         }
 
+        await invalidateCollection(String(collection.id))
+
         return res.status(200).json({ success: true, data: { collection } })
     } catch (err) {
         console.error("Error updating admin collection:", err)
@@ -1137,6 +1151,8 @@ export const PublishAdminCollection = async (req: Request, res: Response) => {
         if (!collection) {
             return res.status(404).json({ success: false, error: "Collection not found" })
         }
+
+        await invalidateCollection(String(collection.id))
 
         return res.status(200).json({ success: true, data: { collection } })
     } catch (err) {
@@ -1223,7 +1239,12 @@ export const AddAdminCollectionSoundscape = async (req: Request, res: Response) 
             return res.status(500).json({ success: false, error: "Failed to add soundscape to collection" })
         }
 
-        await touchCollection(collectionId)
+        try {
+            await touchCollection(collectionId)
+        } finally {
+            // Membership already committed, even if the timestamp update fails.
+            await invalidateCollection(collectionId)
+        }
 
         return res.status(201).json({
             success: true,
@@ -1265,7 +1286,12 @@ export const RemoveAdminCollectionSoundscape = async (req: Request, res: Respons
             })
         }
 
-        await touchCollection(collectionId)
+        try {
+            await touchCollection(collectionId)
+        } finally {
+            // Membership already committed, even if the timestamp update fails.
+            await invalidateCollection(collectionId)
+        }
 
         return res.status(200).json({
             success: true,

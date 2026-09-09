@@ -21,6 +21,10 @@ const AnalyticsRoutes = express.Router()
  *       Authentication is optional. Guests may send session_id to group events.
  *       Accepts a single event ({ event_name, event_data?, session_id? }) or a batch
  *       ({ events: [...] }). Clients fire these events; other API controllers do not.
+ *       Consent is enforced for authenticated callers: when the user's
+ *       users.analytics_enabled is false (the default), events are discarded and the
+ *       response is a 200 with logged: 0 and reason: "analytics_disabled". Anonymous
+ *       events have no consent record and are accepted as before.
  *     security:
  *       - bearerAuth: []
  *       - {}

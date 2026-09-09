@@ -26,6 +26,9 @@ const requireAdmin = [AuthMiddleware, AdminAuthMiddleware] as const
  *     tags:
  *       - Notifications
  *     summary: Get the current user's notification settings
+ *     description: >
+ *       Returns data.settings with reminders_enabled, new_collection_alerts and
+ *       reminder_time (null when the user has not chosen one).
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -58,6 +61,16 @@ NotificationsRoutes.get("/preferences/notifications", AuthMiddleware, GetNotific
  *                 type: boolean
  *               new_collection_alerts:
  *                 type: boolean
+ *               reminder_time:
+ *                 type: string
+ *                 nullable: true
+ *                 description: >
+ *                   Optional 24-hour "HH:MM" (or "HH:MM:SS") wall-clock time for the
+ *                   wind-down reminder, stored so the choice follows the user across
+ *                   devices. Omit to leave the stored value untouched; send null to
+ *                   clear it. The reminder itself is scheduled on the device — the
+ *                   server does not send it.
+ *                 example: "21:30"
  *     responses:
  *       '200':
  *         description: Notification settings updated successfully

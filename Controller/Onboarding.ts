@@ -1,16 +1,15 @@
 import { invalidatePreferences } from "../Utils/CacheHelper.ts"
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
-import { SOUND_PREFERENCE_DEFAULTS, validateSoundPreferencesBody } from "./Preferences.ts"
+import { SOUND_PREFERENCE_DEFAULTS } from "./Preferences.ts"
 
-const STARTING_MODES = ["sleep", "relax", "focus"] as const
-const MIN_GOALS = 1
-const MAX_GOALS = 5
+// public.user_onboarding.mode — CHECK-constrained to exactly these three.
+const ONBOARDING_MODES = ["sleep", "relax", "focus"] as const
 
-type StartingMode = (typeof STARTING_MODES)[number]
+type OnboardingMode = (typeof ONBOARDING_MODES)[number]
 
-const isStartingMode = (value: unknown): value is StartingMode => {
-    return STARTING_MODES.includes(value as StartingMode)
+const isOnboardingMode = (value: unknown): value is OnboardingMode => {
+    return ONBOARDING_MODES.includes(value as OnboardingMode)
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => {
@@ -21,18 +20,68 @@ const getRequestBody = (req: Request): Record<string, unknown> => {
     return isObject(req.body) ? req.body : {}
 }
 
-const validateGoals = (value: unknown): { value: string[]; error?: string } => {
+const hasField = (body: Record<string, unknown>, field: string): boolean => {
+    return Object.prototype.hasOwnProperty.call(body, field)
+}
+
+// text[] column, NOT NULL default '{}'. Omitted -> [] (the DB default), which is
+// exactly what a mode that does not own the field should store.
+const validateStringArray = (
+    body: Record<string, unknown>,
+    field: string,
+): { value: string[]; error?: string } => {
+    const value = body[field]
+
+    if (value === undefined || value === null) {
+        return { value: [] }
+    }
+
     if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-        return { value: [], error: "goals must be an array of strings" }
+        return { value: [], error: `${field} must be an array of strings` }
     }
 
-    const goals = value.map((item) => item.trim()).filter(Boolean)
+    return { value: value.map((item) => item.trim()).filter(Boolean) }
+}
 
-    if (goals.length < MIN_GOALS || goals.length > MAX_GOALS) {
-        return { value: goals, error: `goals must contain between ${MIN_GOALS} and ${MAX_GOALS} items` }
+// text column, nullable. Omitted or explicitly null -> null.
+const validateNullableText = (
+    body: Record<string, unknown>,
+    field: string,
+): { value: string | null; error?: string } => {
+    if (!hasField(body, field) || body[field] === null) {
+        return { value: null }
     }
 
-    return { value: goals }
+    if (typeof body[field] !== "string") {
+        return { value: null, error: `${field} must be a string or null` }
+    }
+
+    return { value: (body[field] as string).trim() || null }
+}
+
+// target_minutes is an integer column holding PLAIN MINUTES (45), never a
+// display string ("45 min"). A numeric string is accepted and coerced so a
+// form-encoded client is not punished, but anything non-integral is rejected
+// rather than silently truncated.
+const validateTargetMinutes = (
+    body: Record<string, unknown>,
+): { value: number | null; error?: string } => {
+    if (!hasField(body, "target_minutes") || body.target_minutes === null) {
+        return { value: null }
+    }
+
+    const raw = body.target_minutes
+    const parsed = typeof raw === "number"
+        ? raw
+        : typeof raw === "string" && raw.trim() !== "" && /^-?\d+$/.test(raw.trim())
+            ? Number(raw.trim())
+            : Number.NaN
+
+    if (!Number.isInteger(parsed) || parsed < 0) {
+        return { value: null, error: "target_minutes must be a non-negative integer number of minutes" }
+    }
+
+    return { value: parsed }
 }
 
 const getAppUserId = async (req: Request, res: Response): Promise<string | number | null> => {
@@ -56,57 +105,78 @@ const getAppUserId = async (req: Request, res: Response): Promise<string | numbe
     return userProfile.id as string | number
 }
 
-// Preference fields ride along in the same onboarding payload but belong in
-// user_sound_preferences. `environment` is the onboarding-step field name for
-// what user_sound_preferences stores as `preferred_environments`.
-const extractPreferencesInput = (body: Record<string, unknown>): Record<string, unknown> => {
-    const input: Record<string, unknown> = {}
-
-    if (Object.prototype.hasOwnProperty.call(body, "preferred_environments")) {
-        input.preferred_environments = body.preferred_environments
-    } else if (Object.prototype.hasOwnProperty.call(body, "environment")) {
-        input.preferred_environments = body.environment
-    }
-
-    for (const field of [
-        "preferred_sounds",
-        "preferred_animals",
-        "preferred_instruments",
-        "excluded_sounds",
-        "detail_preference",
-        "typical_duration",
-    ] as const) {
-        if (Object.prototype.hasOwnProperty.call(body, field)) {
-            input[field] = body[field]
-        }
-    }
-
-    return input
-}
-
+/**
+ * POST /api/onboarding
+ *
+ * Accepts the 8 fields of public.user_onboarding. `mode` is the only required
+ * one — it is the only column with a CHECK constraint and the only answer every
+ * flow collects. The other 7 are optional in the API precisely because each mode
+ * only sends its own family:
+ *
+ *   all modes   mode, user_goals
+ *   focus/sleep mode_breakers[], mode_areas[], target_minutes
+ *   relax       main_goal, relax_causes[], calming_moments
+ *
+ * The endpoint deliberately does NOT reject a field that "belongs" to another
+ * mode. Which screens a mode shows is the frontend's business; this endpoint
+ * persists whatever it is given and leaves everything omitted at its DB default
+ * ('{}' for the text[] columns, null for the rest). Each submission is a full
+ * overwrite of all 8 columns, unchanged from previous behaviour.
+ *
+ * Sound-catalogue preferences (preferred sounds/animals/instruments/
+ * environments, excluded sounds, detail level) are NOT part of onboarding —
+ * PUT /api/preferences/sound owns those. The RPC's p_preference_updates is
+ * therefore always '{}' from here, so this call never touches
+ * user_sound_preferences.
+ */
 export const PostOnboarding = async (req: Request, res: Response) => {
     const body = getRequestBody(req)
 
-    const goals = validateGoals(body.goals)
-    if (goals.error) {
-        return res.status(400).json({ success: false, error: goals.error })
+    // "What would you like help with?" — the one required field.
+    if (!isOnboardingMode(body.mode)) {
+        return res.status(400).json({ success: false, error: "mode must be one of sleep, relax, or focus" })
     }
 
-    if (!isStartingMode(body.starting_mode)) {
-        return res.status(400).json({ success: false, error: "starting_mode must be one of sleep, relax, or focus" })
+    // "Choose a goal" — shared by all three modes, mode-specific option lists.
+    const userGoals = validateNullableText(body, "user_goals")
+    if (userGoals.error) {
+        return res.status(400).json({ success: false, error: userGoals.error })
     }
 
-    let situation: string | null = null
-    if (Object.prototype.hasOwnProperty.call(body, "situation") && body.situation !== null) {
-        if (typeof body.situation !== "string") {
-            return res.status(400).json({ success: false, error: "situation must be a string or null" })
-        }
-        situation = body.situation.trim() || null
+    // Focus/Sleep: "What breaks your {mode}?"
+    const modeBreakers = validateStringArray(body, "mode_breakers")
+    if (modeBreakers.error) {
+        return res.status(400).json({ success: false, error: modeBreakers.error })
     }
 
-    const preferencesValidated = validateSoundPreferencesBody(extractPreferencesInput(body))
-    if (preferencesValidated.error) {
-        return res.status(400).json({ success: false, error: preferencesValidated.error })
+    // Focus/Sleep: "Where do you need it most?"
+    const modeAreas = validateStringArray(body, "mode_areas")
+    if (modeAreas.error) {
+        return res.status(400).json({ success: false, error: modeAreas.error })
+    }
+
+    // Focus/Sleep: "How long do you usually {mode} for?"
+    const targetMinutes = validateTargetMinutes(body)
+    if (targetMinutes.error) {
+        return res.status(400).json({ success: false, error: targetMinutes.error })
+    }
+
+    // Relax: "What's your main goal right now?"
+    const mainGoal = validateNullableText(body, "main_goal")
+    if (mainGoal.error) {
+        return res.status(400).json({ success: false, error: mainGoal.error })
+    }
+
+    // Relax: "What's usually causing your stress?"
+    const relaxCauses = validateStringArray(body, "relax_causes")
+    if (relaxCauses.error) {
+        return res.status(400).json({ success: false, error: relaxCauses.error })
+    }
+
+    // Relax: "When do you most need to feel calmer?"
+    const calmingMoments = validateNullableText(body, "calming_moments")
+    if (calmingMoments.error) {
+        return res.status(400).json({ success: false, error: calmingMoments.error })
     }
 
     try {
@@ -120,11 +190,16 @@ export const PostOnboarding = async (req: Request, res: Response) => {
             "save_user_onboarding_completion",
             {
                 p_user_id: userId,
-                p_goals: goals.value,
-                p_starting_mode: body.starting_mode,
-                p_situation: situation,
+                p_mode: body.mode,
+                p_user_goals: userGoals.value,
+                p_mode_breakers: modeBreakers.value,
+                p_mode_areas: modeAreas.value,
+                p_target_minutes: targetMinutes.value,
+                p_main_goal: mainGoal.value,
+                p_relax_causes: relaxCauses.value,
+                p_calming_moments: calmingMoments.value,
                 p_completed_at: completedAt,
-                p_preference_updates: preferencesValidated.updates,
+                p_preference_updates: {},
             }
         )
 
@@ -158,6 +233,12 @@ export const PostOnboarding = async (req: Request, res: Response) => {
     }
 }
 
+/**
+ * GET /api/onboarding
+ *
+ * Straight select("*") passthrough, so the `onboarding` object is the same shape
+ * POST returns: the 8 data columns plus user_id/completed/completed_at/updated_at.
+ */
 export const GetOnboarding = async (req: Request, res: Response) => {
     try {
         const userId = await getAppUserId(req, res)
@@ -179,6 +260,59 @@ export const GetOnboarding = async (req: Request, res: Response) => {
         return res.status(200).json({ success: true, data: { onboarding: onboarding || null } })
     } catch (err) {
         console.error("Error getting onboarding:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
+/**
+ * PATCH /api/onboarding
+ *
+ * Lightweight "switch mode" path for an already-onboarded user, so the frontend
+ * does not have to resend the whole flow just to change mode. Body is `{ mode }`
+ * — the same field name POST uses. Every other column is left exactly as stored,
+ * including the previous mode's family of answers; POST /api/onboarding is the
+ * way to replace those.
+ */
+export const PatchOnboarding = async (req: Request, res: Response) => {
+    const body = getRequestBody(req)
+
+    if (!isOnboardingMode(body.mode)) {
+        return res.status(400).json({ success: false, error: "mode must be one of sleep, relax, or focus" })
+    }
+
+    try {
+        const userId = await getAppUserId(req, res)
+        if (userId === null) {
+            return
+        }
+
+        const { data: onboarding, error: updateError } = await supabaseAdmin
+            .from("user_onboarding")
+            .update({
+                mode: body.mode,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("user_id", userId)
+            .select("*")
+            .maybeSingle()
+
+        if (updateError) {
+            console.error("Switch onboarding mode error:", updateError)
+            return res.status(500).json({ success: false, error: "Failed to update mode" })
+        }
+
+        if (!onboarding) {
+            return res.status(400).json({
+                success: false,
+                error: "Complete onboarding first via POST /api/onboarding before switching mode",
+            })
+        }
+
+        await invalidatePreferences(req.user!.id)
+
+        return res.status(200).json({ success: true, data: { onboarding } })
+    } catch (err) {
+        console.error("Error switching onboarding mode:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
 }

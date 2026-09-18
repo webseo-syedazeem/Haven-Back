@@ -326,6 +326,28 @@ export const GetAllSoundscapes = async (_req: Request, res: Response) => {
     }
 }
 
+// Live soundscapes for one mode in the catalogue's ranked order (sort_score desc, then
+// title). Shared by GetSoundscapesByMode (which groups the result by subcategory) and
+// GetSoundscapesModePreview (which takes the top N as a flat list), so both surfaces
+// always agree on what "the mode's soundscapes, in order" means. Throws CacheReadError
+// on a database failure so callers inside remember() never cache a partial result.
+const fetchRankedLiveSoundscapesByMode = async (mode: SoundscapeMode): Promise<SoundscapeRecord[]> => {
+    const { data: soundscapes, error: soundscapesError } = await supabaseAdmin
+        .from("soundscapes")
+        .select("*")
+        .eq("status", "live")
+        .eq("mode", mode)
+        .order("sort_score", { ascending: false })
+        .order("title", { ascending: true })
+
+    if (soundscapesError) {
+        console.error("Get soundscapes by mode error:", soundscapesError)
+        throw new CacheReadError(500, "Failed to get soundscapes")
+    }
+
+    return (soundscapes || []) as SoundscapeRecord[]
+}
+
 export const GetSoundscapesByMode = async (req: Request, res: Response) => {
     const mode = String(req.params.mode || "").trim().toLowerCase()
 
@@ -338,22 +360,7 @@ export const GetSoundscapesByMode = async (req: Request, res: Response) => {
 
     try {
         const data = await remember(`soundscapes:mode:${mode}`, CacheTTL.CONTENT, async () => {
-            const { data: soundscapes, error: soundscapesError } = await supabaseAdmin
-                .from("soundscapes")
-                .select("*")
-                .eq("status", "live")
-                .eq("mode", mode)
-                .order("sort_score", { ascending: false })
-                .order("title", { ascending: true })
-
-            if (soundscapesError) {
-                console.error("Get soundscapes by mode error:", soundscapesError)
-                throw new CacheReadError(500, "Failed to get soundscapes")
-            }
-
-            const groupedSoundscapes = groupBySubcategory(
-                (soundscapes || []) as SoundscapeRecord[]
-            )
+            const groupedSoundscapes = groupBySubcategory(await fetchRankedLiveSoundscapesByMode(mode))
 
             return {
                 mode,
@@ -368,6 +375,70 @@ export const GetSoundscapesByMode = async (req: Request, res: Response) => {
         }
 
         console.error("Error getting soundscapes by mode:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
+const DEFAULT_PREVIEW_COUNT = 3
+const MAX_PREVIEW_COUNT = 10
+
+const parsePreviewCount = (value: unknown): { count: number; error?: string } => {
+    if (value === undefined) {
+        return { count: DEFAULT_PREVIEW_COUNT }
+    }
+
+    if (typeof value !== "string" || !/^\d+$/.test(value) || Number(value) < 1) {
+        return { count: DEFAULT_PREVIEW_COUNT, error: "count must be a positive integer" }
+    }
+
+    const parsed = Number(value)
+    if (parsed > MAX_PREVIEW_COUNT) {
+        return { count: DEFAULT_PREVIEW_COUNT, error: `count must be at most ${MAX_PREVIEW_COUNT}` }
+    }
+
+    return { count: parsed }
+}
+
+// Flat top-N list for the onboarding "preview" screen: the first `count` live soundscapes
+// of a mode, in exactly the order GetSoundscapesByMode ranks them, with no subcategory
+// grouping. Guest-accessible. A mode with fewer than `count` live soundscapes returns
+// however many exist (possibly none) - never an error, never padded.
+export const GetSoundscapesModePreview = async (req: Request, res: Response) => {
+    const mode = String(req.params.mode || "").trim().toLowerCase()
+
+    if (!isSoundscapeMode(mode)) {
+        return res.status(400).json({
+            success: false,
+            error: "mode must be one of sleep, relax, or focus",
+        })
+    }
+
+    const parsedCount = parsePreviewCount(req.query.count)
+    if (parsedCount.error) {
+        return res.status(400).json({ success: false, error: parsedCount.error })
+    }
+
+    try {
+        const data = await remember(
+            `soundscapes:mode:${mode}:preview:${parsedCount.count}`,
+            CacheTTL.CONTENT,
+            async () => {
+                const ranked = await fetchRankedLiveSoundscapesByMode(mode)
+
+                return {
+                    mode,
+                    soundscapes: ranked.slice(0, parsedCount.count),
+                }
+            }
+        )
+
+        return res.status(200).json({ success: true, data })
+    } catch (err) {
+        if (err instanceof CacheReadError) {
+            return res.status(err.statusCode).json({ success: false, error: err.message })
+        }
+
+        console.error("Error getting soundscapes mode preview:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
 }

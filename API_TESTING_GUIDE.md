@@ -329,32 +329,41 @@ and `POST /api/admin/soundscapes` already validate for and expect (`Controller/A
 
 #### `POST /api/onboarding`
 - **Auth:** Bearer.
-- **Body:**
+- **Body — Focus/Sleep** (`mode_breakers` / `mode_areas` / `target_minutes`):
 ```json
 {
-  "goals": ["fall_asleep_faster"],
-  "starting_mode": "sleep",
-  "situation": "in bed",
-  "environment": ["ocean", "rain"],
-  "preferred_sounds": ["ocean waves"],
-  "preferred_animals": [],
-  "preferred_instruments": [],
-  "excluded_sounds": ["gulls"],
-  "detail_preference": "minimal",
-  "typical_duration": "30 minutes"
+  "mode": "focus",
+  "user_goals": "Focus deeply",
+  "mode_breakers": ["Background noise", "Phone distractions"],
+  "mode_areas": ["At a desk", "Studying"],
+  "target_minutes": 45
 }
 ```
-(`goals` 1–5 items, `starting_mode` required; all preference fields optional — `environment` maps to `preferred_environments`)
-- **Success response (200):** `{ "success": true, "data": { "onboarding": { "user_id": 1, "goals": [...], "starting_mode": "sleep", "situation": "in bed", "completed": true, "completed_at": "..." }, "preferences": { "preferred_environments": ["ocean","rain"], "excluded_sounds": ["gulls"], "...": "..." } } }`
-- **Errors:** `400` invalid `goals`/`starting_mode`/preference field; `401` no token; `500` server error.
-- **Verify:** run this before `/api/recommendations` — its preference fields land in
-  `user_sound_preferences` so recommendations score against them immediately.
+- **Body — Relax** (`main_goal` / `relax_causes` / `calming_moments` instead):
+```json
+{
+  "mode": "relax",
+  "user_goals": "Feel calmer",
+  "main_goal": "Manage daily stress",
+  "relax_causes": ["Work", "Overthinking"],
+  "calming_moments": "In the evenings"
+}
+```
+(`mode` is the only required field. Send only the fields your mode uses — omitted ones stay at `[]`/`null`. `target_minutes` is plain integer minutes, never `"45 min"`. See API_CONTRACT_ONBOARDING_GOALS.md for the per-mode option lists.)
+- **Success response (200):** `{ "success": true, "data": { "onboarding": { "user_id": 1, "mode": "relax", "user_goals": "Feel calmer", "mode_breakers": [], "mode_areas": [], "target_minutes": null, "main_goal": "Manage daily stress", "relax_causes": ["Work","Overthinking"], "calming_moments": "In the evenings", "completed": true, "completed_at": "..." }, "preferences": { "...": "existing user_sound_preferences row, unchanged" } } }`
+- **Errors:** `400` invalid/missing `mode`, malformed array, non-integer `target_minutes`; `401` no token; `500` server error.
+- **Verify:** confirm the other mode family reads back as `[]`/`null`, and that `users.onboarding_completed` flipped to `true`. This endpoint does **not** write to `user_sound_preferences` — use `PUT /api/preferences/sound` for Sound Preferences / Sounds to Avoid.
 
 #### `GET /api/onboarding`
 - **Auth:** Bearer. **Body:** none.
-- **Success response (200):** `{ "success": true, "data": { "onboarding": { /* row */ } } }` or `{ "onboarding": null }` if never completed.
+- **Success response (200):** `{ "success": true, "data": { "onboarding": { /* same 8 fields POST accepts, + bookkeeping */ } } }` or `{ "onboarding": null }` if never completed.
 - **Errors:** `401` no token; `500` server error.
 
+#### `PATCH /api/onboarding`
+- **Auth:** Bearer. **Body:** `{ "mode": "focus" }` (required, one of `sleep`/`relax`/`focus`).
+- Updates **only** `mode`; the other 7 answers are left as stored.
+- **Success response (200):** `{ "success": true, "data": { "onboarding": { /* full row, mode + updated_at changed */ } } }`
+- **Errors:** `400` invalid `mode`, or onboarding was never completed; `401` no token; `500` server error.
 ---
 
 ## Favourites
@@ -676,13 +685,16 @@ and `POST /api/admin/soundscapes` already validate for and expect (`Controller/A
   "favourites": ["5688323a-2fd9-4a73-af65-29c211dc76e8"],
   "playlists": [ { "name": "Guest Mix", "soundscape_ids": ["8301b75f-867a-43b3-88bf-ab066a20d5f5"] } ],
   "sound_preferences": { "excluded_sounds": ["gulls"] },
-  "goals": ["fall_asleep_faster"],
-  "starting_mode": "sleep",
-  "situation": "in bed"
+  "mode": "relax",
+  "user_goals": "Feel calmer",
+  "main_goal": "Manage daily stress",
+  "relax_causes": ["Work", "Overthinking"],
+  "calming_moments": "In the evenings"
 }
 ```
 - **Success response (200):** `{ "success": true, "data": { "favourites_added": 1, "favourites_skipped": 0, "playlists_created": 1, "playlist_items_skipped": 0, "preferences_applied": true, "onboarding_applied": true } }` (adds `preferences_note`/`onboarding_note` instead of applying if the account already has preferences/onboarding)
-- **Errors:** `400` malformed playlist entry (missing `name`) or invalid `sound_preferences`/`goals`/`starting_mode`/`situation`; `401` no token; `500` server error.
+- **Errors:** `400` malformed playlist entry (missing `name`) or invalid `sound_preferences`/`mode`/`target_minutes`/any onboarding array; `401` no token; `500` server error.
+- Accepts the same 8 onboarding fields as `POST /api/onboarding` under the same names — swap the Relax trio above for `mode_breakers`/`mode_areas`/`target_minutes` to import a Focus or Sleep guest. Onboarding is applied only if the account has no `user_onboarding` row yet.
 - **Verify:** non-live or already-favourited soundscape ids are silently skipped (counted in `favourites_skipped`/`playlist_items_skipped`), not rejected — this is a best-effort import, not all-or-nothing.
 
 #### `DELETE /api/delete-account`

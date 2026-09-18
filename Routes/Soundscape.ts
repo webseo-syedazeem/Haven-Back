@@ -10,6 +10,7 @@ import {
     GetSearchSuggestions,
     GetSimilarSoundscapes,
     GetSoundscapesByMode,
+    GetSoundscapesModePreview,
     SearchSoundscapes,
 } from "../Controller/Soundscape.ts"
 import { OptionalAuthMiddleware } from "../Middleware/OptionalAuthMiddleware.ts"
@@ -184,6 +185,69 @@ SoundscapeRoutes.get("/soundscapes/suggestions", GetSearchSuggestions)
  *         description: Server error
  */
 SoundscapeRoutes.get("/soundscapes/mode/:mode", GetSoundscapesByMode)
+
+/**
+ * @swagger
+ * /api/soundscapes/mode/{mode}/preview:
+ *   get:
+ *     tags:
+ *       - Soundscapes
+ *     summary: Get a short flat list of live soundscapes for one mode (onboarding preview)
+ *     description: >
+ *       Guest-accessible - no auth. Returns the first `count` live soundscapes of the
+ *       mode as a FLAT array (no subcategory grouping), in the same order
+ *       GET /api/soundscapes/mode/{mode} ranks them (sort_score descending, then title).
+ *       If the mode has fewer than `count` live soundscapes, only those are returned -
+ *       the list is never padded and a mode with none live returns an empty array.
+ *       Each element is the same soundscape object the other soundscape endpoints return.
+ *       Cached per mode and count; cleared whenever a soundscape is created, updated,
+ *       published or changes status.
+ *     parameters:
+ *       - in: path
+ *         name: mode
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [sleep, relax, focus]
+ *       - in: query
+ *         name: count
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 10
+ *           default: 3
+ *         description: Number of soundscapes to return.
+ *     responses:
+ *       '200':
+ *         description: Live soundscapes returned successfully (possibly fewer than count)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     mode:
+ *                       type: string
+ *                       enum: [sleep, relax, focus]
+ *                     soundscapes:
+ *                       type: array
+ *                       description: Flat list, at most `count` long, in ranked order.
+ *                       items:
+ *                         type: object
+ *                         additionalProperties: true
+ *                         description: A live soundscape row, same shape as elsewhere.
+ *       '400':
+ *         description: Invalid mode, or count is not an integer between 1 and 10
+ *       '500':
+ *         description: Server error
+ */
+SoundscapeRoutes.get("/soundscapes/mode/:mode/preview", GetSoundscapesModePreview)
 
 /**
  * @swagger

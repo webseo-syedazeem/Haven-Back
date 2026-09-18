@@ -73,19 +73,98 @@ AccountRoutes.get("/account/export", AuthMiddleware, ExportAccountData)
  *                         format: uuid
  *               sound_preferences:
  *                 type: object
- *               goals:
+ *                 description: >
+ *                   Sound Preferences / Sounds to Avoid, upserted into
+ *                   user_sound_preferences. Entirely separate from the onboarding fields
+ *                   below and unaffected by them.
+ *               mode:
+ *                 type: string
+ *                 enum: [sleep, relax, focus]
+ *                 description: 'ALL MODES: same field as POST /api/onboarding''s mode.'
+ *               user_goals:
+ *                 type: string
+ *                 nullable: true
+ *                 description: 'ALL MODES: "Choose a goal" single value.'
+ *               mode_breakers:
  *                 type: array
  *                 items:
  *                   type: string
- *               starting_mode:
- *                 type: string
- *                 enum: [sleep, relax, focus]
- *               situation:
+ *                 description: 'FOCUS/SLEEP ONLY: "What breaks your {mode}?" multi-select. Omit for Relax.'
+ *               mode_areas:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 'FOCUS/SLEEP ONLY: "Where do you need it most?" multi-select. Omit for Relax.'
+ *               target_minutes:
+ *                 type: integer
+ *                 minimum: 0
+ *                 nullable: true
+ *                 description: 'FOCUS/SLEEP ONLY: plain INTEGER minutes (45), never "45 min". Omit for Relax.'
+ *               main_goal:
  *                 type: string
  *                 nullable: true
+ *                 description: 'RELAX ONLY: "What''s your main goal right now?". Omit for Focus/Sleep.'
+ *               relax_causes:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 'RELAX ONLY: "What''s usually causing your stress?" multi-select. Omit for Focus/Sleep.'
+ *               calming_moments:
+ *                 type: string
+ *                 nullable: true
+ *                 description: 'RELAX ONLY: "When do you most need to feel calmer?". Omit for Focus/Sleep.'
+ *           examples:
+ *             focusGuest:
+ *               summary: Guest who onboarded in Focus
+ *               value:
+ *                 favourites: [5688323a-2fd9-4a73-af65-29c211dc76e8]
+ *                 mode: focus
+ *                 user_goals: Focus deeply
+ *                 mode_breakers: [Background noise]
+ *                 mode_areas: [At a desk]
+ *                 target_minutes: 45
+ *             relaxGuest:
+ *               summary: Guest who onboarded in Relax
+ *               value:
+ *                 favourites: [5688323a-2fd9-4a73-af65-29c211dc76e8]
+ *                 mode: relax
+ *                 user_goals: Feel calmer
+ *                 main_goal: Manage daily stress
+ *                 relax_causes: [Work, Overthinking]
+ *                 calming_moments: In the evenings
  *     responses:
  *       '200':
- *         description: Import summary returned successfully
+ *         description: >
+ *           Import summary returned successfully. Onboarding is applied only if the
+ *           account has no user_onboarding row yet; otherwise onboarding_note explains
+ *           it was left alone. When applied, all 8 fields sent are written and
+ *           users.onboarding_completed flips to true.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     favourites_added:
+ *                       type: integer
+ *                     favourites_skipped:
+ *                       type: integer
+ *                     playlists_created:
+ *                       type: integer
+ *                     playlist_items_skipped:
+ *                       type: integer
+ *                     preferences_applied:
+ *                       type: boolean
+ *                     preferences_note:
+ *                       type: string
+ *                     onboarding_applied:
+ *                       type: boolean
+ *                     onboarding_note:
+ *                       type: string
  *       '400':
  *         description: Invalid request body
  *       '401':

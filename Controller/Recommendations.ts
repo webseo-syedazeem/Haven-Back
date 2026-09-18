@@ -6,18 +6,91 @@ const ARRAY_FIELDS = ["contains", "animals", "instruments", "sound_sources"] as 
 const ARRAY_OVERLAP_CAP = 6
 const DETAIL_MATCH_BONUS = 2
 const MODE_MATCH_BONUS = 3
-const GOAL_KEYWORD_BONUS = 1
 const DEFAULT_ALTERNATIVES_COUNT = 4
 const MAX_ALTERNATIVES_COUNT = 20
 const RECOMMENDED_NOW_LIMIT = 10
 
-// Heuristic mapping from free-text onboarding goals to soundscape mode, pending a
-// fixed goal taxonomy. Only used as a small scoring nudge, never a hard filter.
-const MODE_GOAL_KEYWORDS: Record<string, string[]> = {
-    sleep: ["sleep"],
-    relax: ["relax", "calm", "stress", "anxiety", "unwind"],
-    focus: ["focus", "concentrat", "productiv", "study", "work"],
+const SOUNDSCAPE_MODES = ["sleep", "relax", "focus"] as const
+type SoundscapeMode = (typeof SOUNDSCAPE_MODES)[number]
+
+const isSoundscapeMode = (value: unknown): value is SoundscapeMode =>
+    SOUNDSCAPE_MODES.includes(value as SoundscapeMode)
+
+const MODE_AREA_MATCH_BONUS = 3
+const CALMING_MOMENT_MATCH_BONUS = 2
+const INTENSITY_EXACT_MATCH_BONUS = 2
+const INTENSITY_CLOSE_MATCH_BONUS = 1
+const DISTURBANCE_ATTRIBUTE_BONUS = 2
+const MASKING_INTENSITY_THRESHOLD = 4
+const CALMING_INTENSITY_THRESHOLD = 2
+
+// ── mode_areas ("Where do you need it most?") — FOCUS/SLEEP ONLY ─────────────
+// Softly boosts soundscapes whose subcategory/description copy contains a mapped
+// keyword. Never a hard filter: an unmapped or unmatched area contributes no
+// bonus, so results can never go empty because of this. Relax has no entry here
+// because Relax does not collect mode_areas at all — the column stays '{}' for
+// Relax users and this block is simply skipped for them.
+//
+// Only areas with a defensible catalogue correlate are mapped. The rest —
+// Focus "At a desk", Sleep "After late work" — are stored and returned as-is
+// but intentionally NOT ranked on: no existing soundscape metadata field
+// corresponds to them, and inventing one is out of scope.
+const MODE_AREA_SUBCATEGORY_KEYWORDS: Record<"focus" | "sleep", Record<string, string[]>> = {
+    focus: {
+        "studying": ["study"],
+        "creative work": ["creative"],
+        "on the move": ["travel", "commute"],
+    },
+    sleep: {
+        "falling asleep": ["fall asleep", "falling asleep"],
+        "during travel": ["travel"],
+        "after waking": ["back to sleep", "go back to sleep"],
+    },
 }
+
+// ── calming_moments ("When do you most need to feel calmer?") — RELAX ONLY ───
+// Deliberately weaker than mode_areas above, and scored lower
+// (CALMING_MOMENT_MATCH_BONUS 2 vs MODE_AREA_MATCH_BONUS 3), because the mapping
+// is genuinely weaker: mode_areas values name an ACTIVITY the catalogue copy is
+// literally written about ("designed_for: returning to sleep after waking"
+// matches "back to sleep"), whereas calming_moments values name a CLOCK TIME,
+// which that copy is not written about. Only two of the four options have any
+// lexical correlate at all; "During the day" and "Throughout the day" are
+// stored-only, since matching bare "day" would collide with "daytime",
+// "everyday" and with "Throughout the day" itself.
+//
+// Honest caveat: coverage is thin. Checked 2026-09-19 against the live catalogue,
+// of 9 relax soundscapes only 1 mentions "evening" and none mention "night", so
+// "At night" currently boosts nothing. It degrades safely (no match, no bonus).
+const CALMING_MOMENT_KEYWORDS: Record<string, string[]> = {
+    "in the evenings": ["evening"],
+    "at night": ["night"],
+}
+
+// Broadened the same way Database/fix_filter_soundscapes_environments.sql broadens
+// environment matching: subcategory plus the free-text fields most likely to carry
+// purpose/description copy.
+const CONTEXT_TEXT_FIELDS = ["subcategory", "one_line_description", "designed_for", "best_use"] as const
+
+// ── mode_breakers (Focus/Sleep) and relax_causes (Relax) ─────────────────────
+// Both are "what disturbs you" multi-selects, so both re-rank through the SAME
+// heuristic on the existing 1-5 `intensity` field — the only catalogue attribute
+// either has a defensible read on (a noise complaint ~ prefer steady, masking,
+// higher-intensity audio; a rumination complaint ~ prefer calmer, lower-intensity
+// audio). Sharing one pair of sets is deliberate: "Overthinking" appears in both
+// option lists, and it would be incoherent for the same answer to mean one thing
+// under mode_breakers and another under relax_causes.
+//
+// Everything else in either list is stored and returned as-is but NOT ranked on,
+// because no existing soundscape metadata maps to it without inventing a field:
+//   mode_breakers  Phone distractions, Low energy, Getting started,
+//                  Restlessness, An inconsistent routine, Waking in the night
+//   relax_causes   Work, Social situations, News and social media, Finances, Other
+// In practice "Overthinking" is the only relax_causes value that currently maps;
+// no masking-shaped value appears in the Relax list today, but the masking set is
+// applied to both so that stays true if the option list grows.
+const MASKING_DISTURBANCES = new Set(["background noise", "outside noise"])
+const CALMING_DISTURBANCES = new Set(["racing thoughts", "overthinking"])
 
 type SoundscapeRow = Record<string, unknown> & {
     id: string
@@ -30,14 +103,21 @@ type SoundscapeRow = Record<string, unknown> & {
 
 type UserSignals = {
     hasSignals: boolean
+    // user_sound_preferences (Profile > Sound Preferences / Sounds to Avoid) — untouched
+    // by the onboarding redesign.
     preferredSounds: Set<string>
     preferredAnimals: Set<string>
     preferredInstruments: Set<string>
     excludedSounds: string[]
     detailPreference: string | null
-    typicalMinutes: number | null
-    startingMode: string | null
-    goals: string[]
+    intensityPreference: number | null
+    // user_onboarding
+    mode: string | null // all modes — HARD filter
+    modeBreakers: string[] // focus/sleep — intensity heuristic
+    modeAreas: string[] // focus/sleep — subcategory keyword boost
+    targetMinutes: number | null // focus/sleep — duration closeness
+    relaxCauses: string[] // relax — intensity heuristic
+    calmingMoments: string | null // relax — subcategory keyword boost
 }
 
 const EMPTY_SIGNALS: UserSignals = {
@@ -47,9 +127,13 @@ const EMPTY_SIGNALS: UserSignals = {
     preferredInstruments: new Set(),
     excludedSounds: [],
     detailPreference: null,
-    typicalMinutes: null,
-    startingMode: null,
-    goals: [],
+    intensityPreference: null,
+    mode: null,
+    modeBreakers: [],
+    modeAreas: [],
+    targetMinutes: null,
+    relaxCauses: [],
+    calmingMoments: null,
 }
 
 const toLowerStringSet = (value: unknown): Set<string> => {
@@ -111,9 +195,17 @@ const getUserSignals = async (appUserId: string | number | null): Promise<UserSi
             .select("*")
             .eq("user_id", appUserId)
             .maybeSingle(),
+        // user_goals and main_goal are intentionally NOT selected. Both are stored-only:
+        // user_goals ("Choose a goal" — Focus deeply / Feel calmer / Sleep easier / …)
+        // restates the mode the user already picked, and mode is the hard filter, so any
+        // mapping would be perfectly collinear with it — every surviving row would get
+        // the same bonus and the ordering would not change. main_goal (Relax-only: Feel
+        // less anxious / Manage daily stress / Be more present / Sleep more easily / Just
+        // explore) has no catalogue correlate that is not either collinear with the mode
+        // filter or already covered by relax_causes. Fetching either would be dead data.
         supabaseAdmin
             .from("user_onboarding")
-            .select("goals, starting_mode")
+            .select("mode, mode_breakers, mode_areas, target_minutes, relax_causes, calming_moments")
             .eq("user_id", appUserId)
             .maybeSingle(),
     ])
@@ -132,8 +224,29 @@ const getUserSignals = async (appUserId: string | number | null): Promise<UserSi
         return EMPTY_SIGNALS
     }
 
+    // Duration preference has two possible sources. user_onboarding.target_minutes is
+    // the current one — a plain integer count of minutes, collected by Focus/Sleep's
+    // "How long do you usually {mode} for?" screen. user_sound_preferences.typical_duration
+    // is the older free-text one ("45 min"), still owned and settable by
+    // PUT /api/preferences/sound, so it is kept as a fallback rather than dropped —
+    // a user who only ever set it there does not lose their duration ranking.
+    //
+    // Relax collects neither: target_minutes stays null for Relax users, and if
+    // typical_duration is also unset the duration term is simply skipped. That is a
+    // no-op, not a penalty — the term can only ever ADD to a score, so every candidate
+    // is affected identically and the ordering is unchanged.
     const typicalDuration = preferences?.typical_duration
-    const typicalMinutes = typeof typicalDuration === "string" ? extractMinutes(typicalDuration) : null
+    const targetMinutes = typeof onboarding?.target_minutes === "number"
+        ? onboarding.target_minutes
+        : typeof typicalDuration === "string"
+            ? extractMinutes(typicalDuration)
+            : null
+    const intensityPreference = typeof preferences?.intensity_preference === "number"
+        ? preferences.intensity_preference
+        : null
+
+    const toOnboardingArray = (value: unknown): string[] =>
+        Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
 
     return {
         hasSignals: true,
@@ -142,11 +255,13 @@ const getUserSignals = async (appUserId: string | number | null): Promise<UserSi
         preferredInstruments: toLowerStringSet(preferences?.preferred_instruments),
         excludedSounds: toLowerStringArray(preferences?.excluded_sounds),
         detailPreference: typeof preferences?.detail_preference === "string" ? preferences.detail_preference : null,
-        typicalMinutes,
-        startingMode: typeof onboarding?.starting_mode === "string" ? onboarding.starting_mode : null,
-        goals: Array.isArray(onboarding?.goals)
-            ? onboarding.goals.filter((goal): goal is string => typeof goal === "string")
-            : [],
+        intensityPreference,
+        mode: typeof onboarding?.mode === "string" ? onboarding.mode : null,
+        modeBreakers: toOnboardingArray(onboarding?.mode_breakers),
+        modeAreas: toOnboardingArray(onboarding?.mode_areas),
+        targetMinutes,
+        relaxCauses: toOnboardingArray(onboarding?.relax_causes),
+        calmingMoments: typeof onboarding?.calming_moments === "string" ? onboarding.calming_moments : null,
     }
 }
 
@@ -160,6 +275,19 @@ const isHardExcluded = (soundscape: SoundscapeRow, excludedSounds: string[]): bo
     return excludedSounds.some((excluded) =>
         soundscapeValues.some((value) => value.includes(excluded) || excluded.includes(value))
     )
+}
+
+// Shared by the mode_areas and calming_moments boosts: does any keyword from any of
+// the matched sets appear in this soundscape's subcategory/description copy? Applied
+// at most once per soundscape by each caller, so several matching answers cannot stack.
+const matchesAnyKeyword = (soundscape: SoundscapeRow, keywordSets: string[][]): boolean => {
+    const haystack = CONTEXT_TEXT_FIELDS
+        .map((field) => soundscape[field])
+        .filter((value): value is string => typeof value === "string")
+        .join(" ")
+        .toLowerCase()
+
+    return keywordSets.some((keywords) => keywords.some((keyword) => haystack.includes(keyword)))
 }
 
 const scoreSoundscape = (soundscape: SoundscapeRow, signals: UserSignals): number => {
@@ -182,9 +310,12 @@ const scoreSoundscape = (soundscape: SoundscapeRow, signals: UserSignals): numbe
         score += DETAIL_MATCH_BONUS
     }
 
-    if (signals.typicalMinutes !== null && typeof soundscape.duration_seconds === "number") {
+    // target_minutes (Focus/Sleep), falling back to the older typical_duration — see
+    // getUserSignals. Null for Relax users, in which case this term is skipped entirely
+    // for every candidate alike: a missing duration never costs a Relax user anything.
+    if (signals.targetMinutes !== null && typeof soundscape.duration_seconds === "number") {
         const soundscapeMinutes = soundscape.duration_seconds / 60
-        const diff = Math.abs(signals.typicalMinutes - soundscapeMinutes)
+        const diff = Math.abs(signals.targetMinutes - soundscapeMinutes)
         if (diff <= 5) {
             score += 2
         } else if (diff <= 15) {
@@ -192,15 +323,66 @@ const scoreSoundscape = (soundscape: SoundscapeRow, signals: UserSignals): numbe
         }
     }
 
+    // mode. Note this bonus is inert whenever the hard filter in
+    // getRankedLiveSoundscapes is active, since every surviving candidate then shares
+    // the same mode and receives it equally. It is kept for the unfiltered path and
+    // because mode handling is otherwise unchanged.
     const mode = typeof soundscape.mode === "string" ? soundscape.mode : null
-    if (mode) {
-        if (signals.startingMode && signals.startingMode === mode) {
-            score += MODE_MATCH_BONUS
+    if (mode && signals.mode && signals.mode === mode) {
+        score += MODE_MATCH_BONUS
+    }
+
+    // mode_areas ("Where do you need it most?", Focus/Sleep) -> subcategory/description
+    // soft boost, applied at most once regardless of how many areas match. Keyed on this
+    // soundscape's own mode, so an area recorded under a different mode (e.g. previewing
+    // another mode with ?mode=) simply finds no keywords and no-ops. Relax users have
+    // mode_areas = '{}' and skip this entirely.
+    if (signals.modeAreas.length > 0 && (mode === "focus" || mode === "sleep")) {
+        const areaKeywords = MODE_AREA_SUBCATEGORY_KEYWORDS[mode]
+        const matchedKeywordSets = signals.modeAreas
+            .map((value) => areaKeywords[value.trim().toLowerCase()])
+            .filter((keywords): keywords is string[] => Boolean(keywords?.length))
+
+        if (matchedKeywordSets.length > 0 && matchesAnyKeyword(soundscape, matchedKeywordSets)) {
+            score += MODE_AREA_MATCH_BONUS
+        }
+    }
+
+    // calming_moments ("When do you most need to feel calmer?", Relax) -> the same
+    // mechanism at a lower weight, and only for the two of four options that have a
+    // lexical correlate. See CALMING_MOMENT_KEYWORDS for why this is deliberately weaker
+    // than mode_areas. Focus/Sleep users have calming_moments = null and skip this.
+    if (signals.calmingMoments && mode === "relax") {
+        const keywords = CALMING_MOMENT_KEYWORDS[signals.calmingMoments.trim().toLowerCase()]
+        if (keywords?.length && matchesAnyKeyword(soundscape, [keywords])) {
+            score += CALMING_MOMENT_MATCH_BONUS
+        }
+    }
+
+    // mode_breakers (Focus/Sleep) and relax_causes (Relax) -> the shared intensity
+    // heuristic, plus the existing intensity_preference signal. All three read the same
+    // already-existing 1-5 `intensity` field on soundscapes. Only one of the two
+    // onboarding arrays is ever populated for a given user, so concatenating them is
+    // safe — it is a union, not a cross-populated merge.
+    if (typeof soundscape.intensity === "number") {
+        const disturbances = [...signals.modeBreakers, ...signals.relaxCauses]
+            .map((value) => value.trim().toLowerCase())
+
+        if (disturbances.some((value) => MASKING_DISTURBANCES.has(value)) && soundscape.intensity >= MASKING_INTENSITY_THRESHOLD) {
+            score += DISTURBANCE_ATTRIBUTE_BONUS
         }
 
-        const keywords = MODE_GOAL_KEYWORDS[mode] || []
-        if (signals.goals.some((goal) => keywords.some((keyword) => goal.toLowerCase().includes(keyword)))) {
-            score += GOAL_KEYWORD_BONUS
+        if (disturbances.some((value) => CALMING_DISTURBANCES.has(value)) && soundscape.intensity <= CALMING_INTENSITY_THRESHOLD) {
+            score += DISTURBANCE_ATTRIBUTE_BONUS
+        }
+
+        if (signals.intensityPreference !== null) {
+            const diff = Math.abs(signals.intensityPreference - soundscape.intensity)
+            if (diff === 0) {
+                score += INTENSITY_EXACT_MATCH_BONUS
+            } else if (diff === 1) {
+                score += INTENSITY_CLOSE_MATCH_BONUS
+            }
         }
     }
 
@@ -217,9 +399,20 @@ const titleOf = (soundscape: SoundscapeRow) =>
 // soundscapes identically. Loads the full live catalogue into memory and scores it
 // in application code, matching the existing GetSimilarSoundscapes/GetPopularCollections
 // pattern in Controller/Soundscape.ts rather than a new Postgres function.
-export const getRankedLiveSoundscapes = async (req: Request, cacheState?: { cacheable: boolean }): Promise<SoundscapeRow[]> => {
+//
+// `modeOverride` is the optional ?mode=/?goal= preview param on GET /api/recommendations
+// (see GetRecommendations) — it takes priority over the user's stored mode for
+// this one call only and is never persisted. Absent, the stored goal (if any) is the
+// hard filter; absent that too (guest, or signed-in but never onboarded), behaviour is
+// unchanged from before this mode-aware pass: mixed-mode, soft-scored or play-history-sorted.
+export const getRankedLiveSoundscapes = async (
+    req: Request,
+    cacheState?: { cacheable: boolean },
+    modeOverride?: SoundscapeMode | null,
+): Promise<SoundscapeRow[]> => {
     const appUserId = await getAppUserId(req, cacheState)
     const signals = await getUserSignals(appUserId)
+    const modeFilter = modeOverride || (isSoundscapeMode(signals.mode) ? signals.mode : null)
 
     const { data: soundscapes, error: soundscapesError } = await supabaseAdmin
         .from("soundscapes")
@@ -230,9 +423,16 @@ export const getRankedLiveSoundscapes = async (req: Request, cacheState?: { cach
         throw soundscapesError
     }
 
-    const rows = ((soundscapes || []) as SoundscapeRow[]).filter(
+    let rows = ((soundscapes || []) as SoundscapeRow[]).filter(
         (soundscape) => !isHardExcluded(soundscape, signals.excludedSounds)
     )
+
+    // PRIMARY hard filter: the user's stored mode, or the preview override.
+    // Applied before both branches below so a guest previewing ?mode= still gets a
+    // single-mode result, and so excluded_sounds always wins regardless of mode.
+    if (modeFilter) {
+        rows = rows.filter((soundscape) => soundscape.mode === modeFilter)
+    }
 
     if (!signals.hasSignals) {
         const { data: playHistory, error: playHistoryError } = await supabaseAdmin
@@ -295,6 +495,26 @@ const parseAlternativesCount = (value: unknown): { count: number; error?: string
     return { count: parsed }
 }
 
+// Optional one-request preview override (?mode= or ?goal=, either name accepted) so the
+// frontend can show "what would Sleep recommend" without changing the user's stored
+// mode. Never persisted; invalid values 400 like the other query params here.
+const parseModeOverride = (value: unknown): { mode: SoundscapeMode | null; error?: string } => {
+    if (value === undefined) {
+        return { mode: null }
+    }
+
+    if (typeof value !== "string" || !value.trim()) {
+        return { mode: null }
+    }
+
+    const normalized = value.trim().toLowerCase()
+    if (!isSoundscapeMode(normalized)) {
+        return { mode: null, error: "mode must be one of sleep, relax, or focus" }
+    }
+
+    return { mode: normalized }
+}
+
 export const GetRecommendations = async (req: Request, res: Response) => {
     const parsedCount = parseAlternativesCount(req.query.count)
 
@@ -302,13 +522,24 @@ export const GetRecommendations = async (req: Request, res: Response) => {
         return res.status(400).json({ success: false, error: parsedCount.error })
     }
 
+    const parsedMode = parseModeOverride(req.query.mode ?? req.query.goal)
+
+    if (parsedMode.error) {
+        return res.status(400).json({ success: false, error: parsedMode.error })
+    }
+
     try {
         const cacheState = { cacheable: true }
-        const key = userCacheKey(req.user?.id, parsedCount.count === DEFAULT_ALTERNATIVES_COUNT
-            ? "recommendations"
-            : `recommendations:count:${parsedCount.count}`)
+        const keySuffixParts = ["recommendations"]
+        if (parsedCount.count !== DEFAULT_ALTERNATIVES_COUNT) {
+            keySuffixParts.push(`count:${parsedCount.count}`)
+        }
+        if (parsedMode.mode) {
+            keySuffixParts.push(`mode:${parsedMode.mode}`)
+        }
+        const key = userCacheKey(req.user?.id, keySuffixParts.join(":"))
         const data = await remember(key, CacheTTL.USER, async () => {
-            const ranked = await getRankedLiveSoundscapes(req, cacheState)
+            const ranked = await getRankedLiveSoundscapes(req, cacheState, parsedMode.mode)
 
             return {
                 best_match: ranked[0] || null,

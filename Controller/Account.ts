@@ -314,44 +314,96 @@ export const ImportGuestData = async (req: Request, res: Response) => {
         soundPreferencesUpdates = validated.updates
     }
 
-    type OnboardingUpdates = { goals?: string[]; starting_mode?: string; situation?: string | null }
+    // Onboarding import — the same 8 fields POST /api/onboarding accepts, named
+    // identically to the public.user_onboarding columns they land in, so a guest
+    // who completed onboarding locally in ANY mode is imported in full:
+    //
+    //   all modes   mode, user_goals
+    //   focus/sleep mode_breakers[], mode_areas[], target_minutes
+    //   relax       main_goal, relax_causes[], calming_moments
+    //
+    // Whichever family the guest's mode did not use is simply absent from the
+    // body and is left at its DB default ('{}' / null) — never cross-populated.
+    type OnboardingUpdates = {
+        mode?: string
+        user_goals?: string | null
+        mode_breakers?: string[]
+        mode_areas?: string[]
+        target_minutes?: number | null
+        main_goal?: string | null
+        relax_causes?: string[]
+        calming_moments?: string | null
+    }
     let onboardingUpdates: OnboardingUpdates | null = null
 
-    if (body.goals !== undefined || body.starting_mode !== undefined || body.situation !== undefined) {
+    const ONBOARDING_TEXT_FIELDS = ["user_goals", "main_goal", "calming_moments"] as const
+    const ONBOARDING_ARRAY_FIELDS = ["mode_breakers", "mode_areas", "relax_causes"] as const
+    const ONBOARDING_FIELDS = [
+        "mode",
+        ...ONBOARDING_TEXT_FIELDS,
+        ...ONBOARDING_ARRAY_FIELDS,
+        "target_minutes",
+    ] as const
+
+    if (ONBOARDING_FIELDS.some((field) => body[field] !== undefined)) {
         onboardingUpdates = {}
 
-        if (body.goals !== undefined) {
-            if (!Array.isArray(body.goals) || body.goals.some((item) => typeof item !== "string")) {
-                return res.status(400).json({ success: false, error: "goals must be an array of strings" })
-            }
-
-            const goals = (body.goals as string[]).map((item) => item.trim()).filter(Boolean)
-            if (goals.length < 1 || goals.length > 5) {
-                return res.status(400).json({ success: false, error: "goals must contain between 1 and 5 items" })
-            }
-
-            onboardingUpdates.goals = goals
-        }
-
-        if (body.starting_mode !== undefined) {
-            if (!["sleep", "relax", "focus"].includes(body.starting_mode as string)) {
+        if (body.mode !== undefined) {
+            if (!["sleep", "relax", "focus"].includes(body.mode as string)) {
                 return res.status(400).json({
                     success: false,
-                    error: "starting_mode must be one of sleep, relax, or focus",
+                    error: "mode must be one of sleep, relax, or focus",
                 })
             }
 
-            onboardingUpdates.starting_mode = body.starting_mode as string
+            onboardingUpdates.mode = body.mode as string
         }
 
-        if (body.situation !== undefined) {
-            if (body.situation !== null && typeof body.situation !== "string") {
-                return res.status(400).json({ success: false, error: "situation must be a string or null" })
+        for (const field of ONBOARDING_TEXT_FIELDS) {
+            if (body[field] === undefined) {
+                continue
             }
 
-            onboardingUpdates.situation = body.situation === null
+            if (body[field] !== null && typeof body[field] !== "string") {
+                return res.status(400).json({ success: false, error: `${field} must be a string or null` })
+            }
+
+            onboardingUpdates[field] = body[field] === null
                 ? null
-                : (body.situation as string).trim() || null
+                : (body[field] as string).trim() || null
+        }
+
+        for (const field of ONBOARDING_ARRAY_FIELDS) {
+            if (body[field] === undefined || body[field] === null) {
+                continue
+            }
+
+            const value = body[field]
+            if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+                return res.status(400).json({ success: false, error: `${field} must be an array of strings` })
+            }
+
+            onboardingUpdates[field] = (value as string[]).map((item) => item.trim()).filter(Boolean)
+        }
+
+        // Plain integer minutes (45), matching the target_minutes column — never a
+        // display string like "45 min". Same coercion rule as POST /api/onboarding.
+        if (body.target_minutes !== undefined && body.target_minutes !== null) {
+            const raw = body.target_minutes
+            const parsed = typeof raw === "number"
+                ? raw
+                : typeof raw === "string" && /^-?\d+$/.test(raw.trim())
+                    ? Number(raw.trim())
+                    : Number.NaN
+
+            if (!Number.isInteger(parsed) || parsed < 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: "target_minutes must be a non-negative integer number of minutes",
+                })
+            }
+
+            onboardingUpdates.target_minutes = parsed
         }
     }
 
@@ -532,17 +584,30 @@ export const ImportGuestData = async (req: Request, res: Response) => {
             if (existingOnboarding) {
                 onboardingNote = "Onboarding already exists for this account and was not overwritten"
             } else {
-                const { error: insertOnboardingError } = await supabaseAdmin
-                    .from("user_onboarding")
-                    .upsert({
-                        user_id: userId,
-                        goals: onboardingUpdates.goals || [],
-                        starting_mode: onboardingUpdates.starting_mode ?? null,
-                        situation: onboardingUpdates.situation ?? null,
-                        completed: true,
-                        completed_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString(),
-                    }, { onConflict: "user_id" })
+                // Same RPC POST /api/onboarding uses (Controller/Onboarding.ts), rather than
+                // a second hand-maintained upsert — that drift is exactly how fields got
+                // silently dropped here before. All 8 data columns are forwarded, so
+                // nothing a guest answered is lost regardless of which mode they were in.
+                // The "only if no row exists yet" guard above is this endpoint's own, since
+                // the RPC itself always upserts; p_preference_updates is deliberately '{}'
+                // so this call never touches user_sound_preferences — that stays fully
+                // owned by the soundPreferencesUpdates block above, unchanged.
+                const { error: insertOnboardingError } = await supabaseAdmin.rpc(
+                    "save_user_onboarding_completion",
+                    {
+                        p_user_id: userId,
+                        p_mode: onboardingUpdates.mode ?? null,
+                        p_user_goals: onboardingUpdates.user_goals ?? null,
+                        p_mode_breakers: onboardingUpdates.mode_breakers || [],
+                        p_mode_areas: onboardingUpdates.mode_areas || [],
+                        p_target_minutes: onboardingUpdates.target_minutes ?? null,
+                        p_main_goal: onboardingUpdates.main_goal ?? null,
+                        p_relax_causes: onboardingUpdates.relax_causes || [],
+                        p_calming_moments: onboardingUpdates.calming_moments ?? null,
+                        p_completed_at: new Date().toISOString(),
+                        p_preference_updates: {},
+                    }
+                )
 
                 if (insertOnboardingError) {
                     console.error("Import guest data insert onboarding error:", insertOnboardingError)

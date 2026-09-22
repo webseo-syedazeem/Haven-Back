@@ -360,6 +360,14 @@ const streamAudioFile = async (
     }
 }
 
+app.use(
+    '/passage_soundscape_images_webp',
+    express.static(path.join(process.cwd(), 'public', 'passage_soundscape_images_webp'), {
+        maxAge: '7d',
+        immutable: false,
+    })
+)
+
 app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, async (req, res) => {
     return streamAudioFile(soundscapesPath, req.params[0], req, res, "Soundscape not found")
 })

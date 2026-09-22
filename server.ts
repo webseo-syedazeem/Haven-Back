@@ -1,4 +1,5 @@
 ﻿import express from "express"
+import type { Request, Response } from "express"
 import "dotenv/config"
 import cors from "cors"
 import helmet from "helmet"
@@ -31,6 +32,7 @@ const app = express()
 app.set("trust proxy", 1)
 const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000").split(",")
 const soundscapesPath = path.join(process.cwd(), "public", "soundscapes")
+const previewsPath = path.join(process.cwd(), "public", "previews")
 const privacyPolicyPath = path.join(process.cwd(), "public", "legal", "privacy-policy.md")
 const adminPanelPath = path.join(process.cwd(), "public", "admin", "index.html")
 
@@ -270,13 +272,22 @@ app.use(
 )
 
 // ASYNC HIGH-PERFORMANCE AUDIO STREAMING ENGINE (Spotify-Style)
-app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, async (req, res) => {
-    const relativeFilePath = req.params[0]
-    const filePath = path.resolve(soundscapesPath, relativeFilePath)
+// Shared by both the full-master route (/soundscapes/*) and the preview-clip
+// route (/previews/*) — same path-traversal guard, range-request handling and
+// headers, just parameterized by which base directory the file must resolve
+// within.
+const streamAudioFile = async (
+    basePath: string,
+    relativeFilePath: string,
+    req: Request,
+    res: Response,
+    notFoundMessage: string
+) => {
+    const filePath = path.resolve(basePath, relativeFilePath)
     const extension = path.extname(filePath).toLowerCase()
 
     // 1. Path Traversal Attack Security Check
-    if (!filePath.startsWith(`${soundscapesPath}${path.sep}`)) {
+    if (!filePath.startsWith(`${basePath}${path.sep}`)) {
         return res.status(403).json({ message: "Invalid soundscape path" })
     }
 
@@ -330,7 +341,7 @@ app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, async (req, res) => {
 
         // Pipe chunk safely and handle abrupt client closes (user skips or closes mobile app)
         const stream = fs.createReadStream(filePath, { start, end, highWaterMark: AUDIO_CHUNK_SIZE })
-        
+
         req.on("close", () => {
             stream.destroy() // Closes stream immediately if user fast-forwards or skips track
         })
@@ -343,10 +354,18 @@ app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, async (req, res) => {
 
     } catch (error: any) {
         if (error.code === "ENOENT") {
-            return res.status(404).json({ message: "Soundscape not found" })
+            return res.status(404).json({ message: notFoundMessage })
         }
         return res.status(500).json({ message: "Internal server error" })
     }
+}
+
+app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, async (req, res) => {
+    return streamAudioFile(soundscapesPath, req.params[0], req, res, "Soundscape not found")
+})
+
+app.get(/^\/previews\/(.+\.(?:m4a|mp3|ogg|wav))$/i, async (req, res) => {
+    return streamAudioFile(previewsPath, req.params[0], req, res, "Preview not found")
 })
 
 app.get("/privacy-policy", async (_req, res) => {
@@ -414,6 +433,72 @@ const options = {
                     type: "http",
                     scheme: "bearer",
                     bearerFormat: "JWT",
+                },
+            },
+            schemas: {
+                Soundscape: {
+                    type: "object",
+                    description: "A soundscape catalogue row, as returned by the public and admin soundscape endpoints.",
+                    properties: {
+                        id: { type: "string", format: "uuid" },
+                        catalogue_ref: { type: "string", nullable: true },
+                        mode: { type: "string", enum: ["sleep", "relax", "focus"] },
+                        subcategory: { type: "string" },
+                        title: { type: "string" },
+                        short_title: { type: "string", nullable: true },
+                        one_line_description: { type: "string", nullable: true },
+                        designed_for: { type: "string", nullable: true },
+                        best_use: { type: "string", nullable: true },
+                        artwork_url: { type: "string", nullable: true },
+                        contains: { type: "array", items: { type: "string" } },
+                        does_not_contain: { type: "array", items: { type: "string" } },
+                        animals: { type: "array", items: { type: "string" } },
+                        instruments: { type: "array", items: { type: "string" } },
+                        human_presence: { type: "boolean" },
+                        perspective: { type: "string", nullable: true },
+                        movement: { type: "string", nullable: true },
+                        intensity: { type: "integer", nullable: true, minimum: 1, maximum: 5 },
+                        detail_level: { type: "string", nullable: true, enum: ["minimal", "gentle", "balanced", "rich"] },
+                        sound_sources: { type: "array", items: { type: "string" } },
+                        primary_sound_family: { type: "string", nullable: true, description: "Tag Dictionary \"Sound Family\" group value, snake_case (e.g. rail, vessels, aircraft, running_water, birds, rain)." },
+                        exact_environment: { type: "string", nullable: true },
+                        time_of_day: { type: "string", nullable: true },
+                        weather: { type: "string", nullable: true },
+                        setting_type: { type: "string", nullable: true },
+                        rain_led: { type: "boolean" },
+                        wind_led: { type: "boolean" },
+                        wind_driven_foliage: { type: "boolean" },
+                        master_version: { type: "integer" },
+                        loudness_lufs: { type: "number", nullable: true },
+                        duration_seconds: { type: "integer", nullable: true },
+                        is_loop: { type: "boolean" },
+                        qa_passed_at: { type: "string", format: "date-time", nullable: true },
+                        qa_reviewer: { type: "string", nullable: true },
+                        rights_status: { type: "string", nullable: true },
+                        status: {
+                            type: "string",
+                            enum: ["idea", "briefed", "generating", "editing", "audio_qa", "metadata_qa", "app_qa", "live", "on_hold"],
+                        },
+                        file_url: {
+                            type: "string",
+                            nullable: true,
+                            description: "URL to the full 1-hour master audio file.",
+                        },
+                        preview_url: {
+                            type: "string",
+                            nullable: true,
+                            description: "URL to a short (~1 minute) preview clip, manually cut and uploaded alongside file_url. Null until a preview has been uploaded for this soundscape — fall back to streaming file_url when null.",
+                        },
+                        file_size_bytes: { type: "integer", nullable: true },
+                        search_keywords: { type: "array", items: { type: "string" } },
+                        sort_score: { type: "integer" },
+                        release_date: { type: "string", format: "date", nullable: true },
+                        science_label: { type: "string", nullable: true },
+                        science_note: { type: "string", nullable: true },
+                        version_of: { type: "string", format: "uuid", nullable: true },
+                        created_at: { type: "string", format: "date-time" },
+                        updated_at: { type: "string", format: "date-time" },
+                    },
                 },
             },
         },

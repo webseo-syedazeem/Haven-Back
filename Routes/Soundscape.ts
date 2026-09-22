@@ -239,9 +239,7 @@ SoundscapeRoutes.get("/soundscapes/mode/:mode", GetSoundscapesByMode)
  *                       type: array
  *                       description: Flat list, at most `count` long, in ranked order.
  *                       items:
- *                         type: object
- *                         additionalProperties: true
- *                         description: A live soundscape row, same shape as elsewhere.
+ *                         $ref: '#/components/schemas/Soundscape'
  *       '400':
  *         description: Invalid mode, or count is not an integer between 1 and 10
  *       '500':
@@ -266,6 +264,19 @@ SoundscapeRoutes.get("/soundscapes/mode/:mode/preview", GetSoundscapesModePrevie
  *     responses:
  *       '200':
  *         description: Live soundscape returned successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     soundscape:
+ *                       $ref: '#/components/schemas/Soundscape'
  *       '404':
  *         description: Soundscape not found or not live
  *       '500':

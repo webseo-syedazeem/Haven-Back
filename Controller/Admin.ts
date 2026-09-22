@@ -4,15 +4,17 @@ import { supabaseAdmin } from "../Config/Dbconnection.ts"
 
 const SOUNDSCAPE_MODES = ["sleep", "relax", "focus"] as const
 const SOUNDSCAPE_STATUSES = [
-    "draft",
-    "master_review",
-    "tags_verified",
-    "release_approved",
+    "idea",
+    "briefed",
+    "generating",
+    "editing",
+    "audio_qa",
+    "metadata_qa",
+    "app_qa",
     "live",
-    "revised",
-    "retired",
+    "on_hold",
 ] as const
-const DETAIL_LEVELS = ["minimal", "balanced", "rich"] as const
+const DETAIL_LEVELS = ["minimal", "gentle", "balanced", "rich"] as const
 
 const SOUNDSCAPE_TEXT_FIELDS = [
     "subcategory",
@@ -25,6 +27,7 @@ const SOUNDSCAPE_TEXT_FIELDS = [
     "perspective",
     "movement",
     "file_url",
+    "preview_url",
     "science_label",
     "science_note",
     "catalogue_ref",
@@ -267,7 +270,7 @@ const validateSoundscapeFields = (body: unknown): ValidationResult => {
 
     if (body.detail_level !== undefined) {
         if (body.detail_level !== null && !isDetailLevel(body.detail_level)) {
-            return { values, error: "detail_level must be one of minimal, balanced, or rich" }
+            return { values, error: `detail_level must be one of ${DETAIL_LEVELS.join(", ")}` }
         }
         values.detail_level = body.detail_level
     }
@@ -412,7 +415,7 @@ export const CreateAdminSoundscape = async (req: Request, res: Response) => {
     try {
         const { data: soundscape, error } = await supabaseAdmin
             .from("soundscapes")
-            .insert({ ...validated.values, status: "draft" })
+            .insert({ ...validated.values, status: "idea" })
             .select("*")
             .single()
 
@@ -645,10 +648,10 @@ export const DeleteAdminSoundscape = async (req: Request, res: Response) => {
             return res.status(404).json({ success: false, error: "Soundscape not found" })
         }
 
-        if (existing.status !== "draft") {
+        if (existing.status !== "idea") {
             return res.status(400).json({
                 success: false,
-                error: "Only draft soundscapes can be deleted. Set this soundscape to retired instead.",
+                error: "Only idea-stage soundscapes can be deleted. Set this soundscape to on_hold instead.",
             })
         }
 
@@ -656,7 +659,7 @@ export const DeleteAdminSoundscape = async (req: Request, res: Response) => {
             .from("soundscapes")
             .delete()
             .eq("id", soundscapeId)
-            .eq("status", "draft")
+            .eq("status", "idea")
             .select("id")
             .maybeSingle()
 
@@ -664,7 +667,7 @@ export const DeleteAdminSoundscape = async (req: Request, res: Response) => {
             if (error.code === "23503") {
                 return res.status(400).json({
                     success: false,
-                    error: "Draft soundscape is still referenced; remove it from collections first",
+                    error: "Idea-stage soundscape is still referenced; remove it from collections first",
                 })
             }
 
@@ -675,7 +678,7 @@ export const DeleteAdminSoundscape = async (req: Request, res: Response) => {
         if (!deleted) {
             return res.status(400).json({
                 success: false,
-                error: "Soundscape status changed; only drafts can be deleted",
+                error: "Soundscape status changed; only idea-stage soundscapes can be deleted",
             })
         }
 
@@ -718,7 +721,7 @@ export const ReviseAdminSoundscape = async (req: Request, res: Response) => {
             revisionPayload[field] = value
         }
 
-        revisionPayload.status = "draft"
+        revisionPayload.status = "idea"
         revisionPayload.version_of = soundscapeId
         revisionPayload.catalogue_ref = null
 
@@ -747,7 +750,7 @@ export const ReviseAdminSoundscape = async (req: Request, res: Response) => {
             data: {
                 soundscape: revision,
                 original: existing,
-                note: "Revision created as draft. The original soundscape status was not changed — update it separately (for example to revised) via the status endpoint when ready.",
+                note: "Revision created at the idea stage. The original soundscape status was not changed — update it separately via the status endpoint when ready.",
             },
         })
     } catch (err) {

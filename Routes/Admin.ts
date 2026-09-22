@@ -42,8 +42,8 @@ const requireAdmin = [AuthMiddleware, AdminAuthMiddleware] as const
  * /api/admin/soundscapes:
  *   post:
  *     tags: [Admin]
- *     summary: Create a draft soundscape
- *     description: Status is always forced to draft. Any authenticated user currently has access.
+ *     summary: Create an idea-stage soundscape
+ *     description: Status is always forced to idea. Any authenticated user currently has access.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -95,7 +95,7 @@ const requireAdmin = [AuthMiddleware, AdminAuthMiddleware] as const
  *                 maximum: 5
  *               detail_level:
  *                 type: string
- *                 enum: [minimal, balanced, rich]
+ *                 enum: [minimal, gentle, balanced, rich]
  *               sound_sources:
  *                 type: array
  *                 items: { type: string }
@@ -105,6 +105,9 @@ const requireAdmin = [AuthMiddleware, AdminAuthMiddleware] as const
  *                 type: boolean
  *               file_url:
  *                 type: string
+ *               preview_url:
+ *                 type: string
+ *                 description: Short (~1 minute) preview clip URL, distinct from file_url.
  *               file_size_bytes:
  *                 type: integer
  *               search_keywords:
@@ -120,7 +123,7 @@ const requireAdmin = [AuthMiddleware, AdminAuthMiddleware] as const
  *                 type: string
  *     responses:
  *       '201':
- *         description: Draft soundscape created
+ *         description: Idea-stage soundscape created
  *       '400':
  *         description: Invalid soundscape input
  *       '401':
@@ -135,7 +138,7 @@ const requireAdmin = [AuthMiddleware, AdminAuthMiddleware] as const
  *         name: status
  *         schema:
  *           type: string
- *           enum: [draft, master_review, tags_verified, release_approved, live, revised, retired]
+ *           enum: [idea, briefed, generating, editing, audio_qa, metadata_qa, app_qa, live, on_hold]
  *     responses:
  *       '200':
  *         description: Soundscapes returned successfully
@@ -188,7 +191,7 @@ AdminRoutes.get("/admin/soundscapes", ...requireAdmin, GetAdminSoundscapes)
  *       '404': { description: Soundscape not found }
  *   delete:
  *     tags: [Admin]
- *     summary: Permanently delete a draft soundscape
+ *     summary: Permanently delete an idea-stage soundscape
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -197,8 +200,8 @@ AdminRoutes.get("/admin/soundscapes", ...requireAdmin, GetAdminSoundscapes)
  *         required: true
  *         schema: { type: string, format: uuid }
  *     responses:
- *       '200': { description: Draft soundscape deleted }
- *       '400': { description: Soundscape is not a draft }
+ *       '200': { description: Idea-stage soundscape deleted }
+ *       '400': { description: Soundscape is not at the idea stage }
  *       '401': { description: Invalid or missing session }
  *       '404': { description: Soundscape not found }
  */
@@ -229,7 +232,7 @@ AdminRoutes.delete("/admin/soundscapes/:id", ...requireAdmin, DeleteAdminSoundsc
  *             properties:
  *               status:
  *                 type: string
- *                 enum: [draft, master_review, tags_verified, release_approved, live, revised, retired]
+ *                 enum: [idea, briefed, generating, editing, audio_qa, metadata_qa, app_qa, live, on_hold]
  *     responses:
  *       '200': { description: Status updated successfully }
  *       '400': { description: Invalid status }
@@ -243,8 +246,8 @@ AdminRoutes.put("/admin/soundscapes/:id/status", ...requireAdmin, UpdateAdminSou
  * /api/admin/soundscapes/{id}/revise:
  *   post:
  *     tags: [Admin]
- *     summary: Duplicate a soundscape into a new draft revision
- *     description: Creates a new draft row with version_of set to the original id. Does not change the original status.
+ *     summary: Duplicate a soundscape into a new idea-stage revision
+ *     description: Creates a new idea-stage row with version_of set to the original id. Does not change the original status.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -253,7 +256,7 @@ AdminRoutes.put("/admin/soundscapes/:id/status", ...requireAdmin, UpdateAdminSou
  *         required: true
  *         schema: { type: string, format: uuid }
  *     responses:
- *       '201': { description: Draft revision created }
+ *       '201': { description: Idea-stage revision created }
  *       '401': { description: Invalid or missing session }
  *       '404': { description: Soundscape not found }
  */

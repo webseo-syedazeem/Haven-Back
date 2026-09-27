@@ -217,7 +217,7 @@ app.use(helmet({
 
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 200,
     message: { success: false, error: "Too many requests, please try again later" },
     standardHeaders: true,
     legacyHeaders: false,
@@ -225,7 +225,7 @@ const apiLimiter = rateLimit({
 
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 10,
+    max: 20,
     message: { success: false, error: "Too many auth attempts, please try again later" },
     standardHeaders: true,
     legacyHeaders: false,
@@ -254,6 +254,7 @@ if (process.env.NODE_ENV === "Production") {
     app.use("/api/signin", authLimiter)
     app.use("/api/signup", authLimiter)
     app.use("/api/forgot-password", authLimiter)
+    app.use("/api/reset-password", authLimiter)
     app.use(express.json({ limit: "10kb" }))
     app.use(express.urlencoded({ extended: true, limit: "10kb" }))
 } else {
@@ -570,4 +571,3 @@ const startServer = async () => {
 }
 
 startServer()
-

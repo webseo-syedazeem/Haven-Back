@@ -55,10 +55,12 @@ const AuthRoutes = express.Router()
  *               - password
  *               - username
  *     responses:
- *       '200':
+ *       '201':
  *         description: User registered successfully
  *       '400':
- *         description: Bad request
+ *         description: Invalid signup fields
+ *       '409':
+ *         description: Email already registered or request already authenticated
  *       '500':
  *         description: Server error
  */
@@ -89,9 +91,15 @@ AuthRoutes.post("/signup", SignUp)
  *       '200':
  *         description: User signed in successfully
  *       '400':
- *         description: Bad request
+ *         description: Invalid email or password fields
  *       '401':
  *         description: Invalid credentials
+ *       '403':
+ *         description: Email not confirmed
+ *       '409':
+ *         description: Request already authenticated
+ *       '429':
+ *         description: Too many sign-in attempts
  */
 AuthRoutes.post("/signin", SignIn)
 
@@ -228,7 +236,13 @@ AuthRoutes.post("/refresh-token", RefreshToken)
  *       '200':
  *         description: Password reset email sent
  *       '400':
- *         description: Bad request
+ *         description: Invalid email format
+ *       '404':
+ *         description: No account is registered with this email
+ *       '429':
+ *         description: Too many password reset requests
+ *       '500':
+ *         description: Server or database error
  */
 AuthRoutes.post("/forgot-password", ForgotPassword)
 
@@ -248,13 +262,17 @@ AuthRoutes.post("/forgot-password", ForgotPassword)
  *             properties:
  *               newPassword:
  *                 type: string
+ *               access_token:
+ *                 type: string
  *             required:
  *               - newPassword
  *     responses:
  *       '200':
  *         description: Password reset successfully
  *       '400':
- *         description: Bad request or invalid token
+ *         description: Invalid password or missing token
+ *       '401':
+ *         description: Invalid or expired reset token
  */
 AuthRoutes.post("/reset-password", ResetPassword)
 
@@ -488,6 +506,8 @@ AuthRoutes.delete("/delete-account", AuthMiddleware, DeleteAccount)
  *                       type: object
  *       '401':
  *         description: Invalid or expired session
+ *       '404':
+ *         description: User profile not found
  *       '500':
  *         description: Server error
  */
@@ -507,6 +527,8 @@ AuthRoutes.get("/check-session", AuthMiddleware, CheckSession)
  *         description: Current user returned
  *       '401':
  *         description: Invalid or missing session
+ *       '404':
+ *         description: User profile not found
  */
 AuthRoutes.get("/me", AuthMiddleware, GetCurrentUser)
 

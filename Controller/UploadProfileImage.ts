@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express"
 import multer from "multer"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
+import { authError } from "../Utils/AuthValidation.ts"
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
 const AVATAR_BUCKET = "avatars"
@@ -38,10 +39,12 @@ export const ProfileImageUploadMiddleware = (req: Request, res: Response, next: 
         }
 
         if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
-            return res.status(400).json({ success: false, error: "Image must be 5MB or smaller" })
+            return authError(res, 400, "VALIDATION_ERROR", "Image must be 5MB or smaller", {
+                image: "Maximum allowed image size is 5MB",
+            })
         }
 
-        return res.status(400).json({ success: false, error: err instanceof Error ? err.message : "Invalid image upload" })
+        return authError(res, 400, "VALIDATION_ERROR", err instanceof Error ? err.message : "Invalid image upload")
     })
 }
 
@@ -49,7 +52,7 @@ export const UploadProfileImage = async (req: Request, res: Response) => {
     const file = req.file
 
     if (!file) {
-        return res.status(400).json({ success: false, error: "image file is required" })
+        return authError(res, 400, "VALIDATION_ERROR", "image file is required", { image: "image file is required" })
     }
 
     try {
@@ -59,9 +62,13 @@ export const UploadProfileImage = async (req: Request, res: Response) => {
         const storagePath = `${user.id}/${timestamp}.${extension}`
 
         // Capture existing files BEFORE uploading the new one
-        const { data: existingFiles } = await supabaseAdmin.storage
+        const { data: existingFiles, error: listError } = await supabaseAdmin.storage
             .from(AVATAR_BUCKET)
             .list(user.id)
+
+        if (listError) {
+            console.error("List existing profile images error:", listError)
+        }
 
         const { error: uploadError } = await supabaseAdmin.storage
             .from(AVATAR_BUCKET)
@@ -72,7 +79,7 @@ export const UploadProfileImage = async (req: Request, res: Response) => {
 
         if (uploadError) {
             console.error("Upload profile image storage error:", uploadError)
-            return res.status(500).json({ success: false, error: "Failed to upload profile image" })
+            return authError(res, 500, "DATABASE_ERROR", "Failed to upload profile image")
         }
 
         const { data: publicUrlData } = supabaseAdmin.storage
@@ -81,17 +88,22 @@ export const UploadProfileImage = async (req: Request, res: Response) => {
 
         const profileImageUrl = publicUrlData.publicUrl
 
-        const { error: updateError } = await supabaseAdmin
+        const { data: updatedProfile, error: updateError } = await supabaseAdmin
             .from("users")
             .update({
                 profile_image_url: profileImageUrl,
                 updated_at: new Date().toISOString(),
             })
             .eq("auth_user_id", user.id)
+            .select("profile_image_url")
+            .maybeSingle()
 
-        if (updateError) {
+        if (updateError || !updatedProfile) {
             console.error("Upload profile image profile update error:", updateError)
-            return res.status(500).json({ success: false, error: "Failed to update profile image" })
+            await supabaseAdmin.storage.from(AVATAR_BUCKET).remove([storagePath])
+            return updateError
+                ? authError(res, 500, "DATABASE_ERROR", "Failed to update profile image")
+                : authError(res, 404, "PROFILE_NOT_FOUND", "User profile not found")
         }
 
         // New image saved + DB updated: now clean up the old files
@@ -119,6 +131,6 @@ export const UploadProfileImage = async (req: Request, res: Response) => {
         })
     } catch (err) {
         console.error("Error uploading profile image:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }

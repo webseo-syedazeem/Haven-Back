@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express"
 import { createClient } from "@supabase/supabase-js"
 import { supabaseUrlValue, supabaseAnonKeyValue } from "../Config/Dbconnection.ts"
+import { authError } from "../Utils/AuthValidation.ts"
 
 declare global {
     namespace Express {
@@ -13,15 +14,11 @@ declare global {
 export const AuthMiddleware = async (req: Request, res: Response, next: NextFunction) => {
     const authHeader = String(req.headers.authorization || "").trim()
 
-    if (!authHeader.startsWith("Bearer ")) {
-        return res.status(401).json({ success: false, error: "Missing or invalid Authorization header" })
+    const match = authHeader.match(/^Bearer\s+(\S+)$/i)
+    if (!match) {
+        return authError(res, 401, "INVALID_AUTH_HEADER", "Missing or invalid Authorization header")
     }
-
-    const token = authHeader.slice(7).trim()
-
-    if (!token) {
-        return res.status(401).json({ success: false, error: "Missing access token" })
-    }
+    const token = match[1]
 
     try {
         const authClient = createClient(supabaseUrlValue, supabaseAnonKeyValue, {
@@ -31,13 +28,13 @@ export const AuthMiddleware = async (req: Request, res: Response, next: NextFunc
         const { data, error } = await authClient.auth.getUser()
 
         if (error || !data.user) {
-            return res.status(401).json({ success: false, error: "Invalid or expired access token" })
+            return authError(res, 401, "INVALID_TOKEN", "Invalid or expired access token")
         }
 
         req.user = data.user
         next()
     } catch (err) {
         console.error("AuthMiddleware error:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }

@@ -2,13 +2,35 @@ import { invalidateUser, invalidateContent } from "../Utils/CacheHelper.ts"
 import { createClient } from "@supabase/supabase-js"
 import type { Request, Response } from "express"
 import { supabase, supabaseAdmin, supabaseUrlValue, supabaseAnonKeyValue } from "../Config/Dbconnection.ts"
+import { authError, emailIssue, nameIssue, passwordIssue, tokenIssue } from "../Utils/AuthValidation.ts"
+
+type AuthServiceError = {
+    code?: string
+    message?: string
+    status?: number
+}
+
+const logAuthFailure = (action: string, error: AuthServiceError) => {
+    // Expected auth rejections are user-facing outcomes, so do not print their stack traces.
+    if (typeof error.status === "number" && error.status < 500) {
+        const message = String(error.message || error.code || "Authentication request rejected")
+            .replace(/\s+/g, " ")
+            .trim()
+        console.warn(`[Auth] ${action}: ${message}`)
+        return
+    }
+
+    // Keep the complete error for unexpected/provider-side failures so they remain debuggable.
+    console.error(`[Auth] ${action}:`, error)
+}
 
 const getBearerToken = (req: Request) => {
     const authHeader = String(req.headers.authorization || "").trim()
-    if (!authHeader.startsWith("Bearer ")) {
+    const match = authHeader.match(/^Bearer\s+(\S+)$/i)
+    if (!match) {
         return null
     }
-    return authHeader.slice(7).trim()
+    return match[1]
 }
 
 const createAuthClient = (token: string) =>
@@ -20,16 +42,56 @@ const createAuthClient = (token: string) =>
         },
     })
 
+const rejectAuthenticatedRequest = async (req: Request, res: Response) => {
+    const authHeader = String(req.headers.authorization || "").trim()
+    if (!authHeader) return false
+
+    const token = getBearerToken(req)
+    if (!token) {
+        authError(res, 401, "INVALID_AUTH_HEADER", "Authorization header must use the Bearer token format")
+        return true
+    }
+
+    const { data } = await createAuthClient(token).auth.getUser()
+    if (!data.user) return false
+
+    authError(res, 409, "ALREADY_AUTHENTICATED", "You are already signed in. Log out before signing in or creating another account")
+    return true
+}
+
 export const SignUp = async (req: Request, res: Response) => {
     const { email, password, username } = req.body || {}
     const cleanEmail = String(email || "").trim().toLowerCase()
     const cleanUsername = String(username || "").trim()
 
-    if (!cleanEmail || !password || !cleanUsername) {
-        return res.status(400).json({ error: "email, password and username are required" })
+    const details: Record<string, string> = {}
+    const invalidEmail = emailIssue(email)
+    const invalidPassword = passwordIssue(password, "password", true)
+    const invalidUsername = nameIssue(username, "username", 2)
+    if (invalidEmail) details.email = invalidEmail
+    if (invalidPassword) details.password = invalidPassword
+    if (invalidUsername) details.username = invalidUsername
+    if (Object.keys(details).length) {
+        return authError(res, 400, "VALIDATION_ERROR", "Please provide valid signup details", details)
     }
 
     try {
+        if (await rejectAuthenticatedRequest(req, res)) return
+
+        const { data: existingProfile, error: lookupError } = await supabaseAdmin
+            .from("users")
+            .select("id")
+            .eq("email", cleanEmail)
+            .maybeSingle()
+
+        if (lookupError) {
+            console.error("Signup email lookup error:", lookupError)
+            return authError(res, 500, "DATABASE_ERROR", "Unable to verify whether this email is already registered")
+        }
+        if (existingProfile) {
+            return authError(res, 409, "EMAIL_ALREADY_REGISTERED", "An account with this email already exists")
+        }
+
         const { data, error } = await supabase.auth.signUp({
             email: cleanEmail,
             password,
@@ -44,14 +106,22 @@ export const SignUp = async (req: Request, res: Response) => {
         })
 
         if (error) {
-            console.error("Supabase signUp error:", error)
-            return res.status(400).json({ success: false, error: error.message || error })
+            logAuthFailure("Sign-up failed", error)
+            const duplicate = ["user_already_exists", "email_exists"].includes(String(error.code || ""))
+            return duplicate
+                ? authError(res, 409, "EMAIL_ALREADY_REGISTERED", "An account with this email already exists")
+                : authError(res, 400, "AUTH_ERROR", error.message || "Unable to create account")
         }
 
-        return res.status(200).json({ success: true, data: { auth: data } })
+        // Supabase can hide duplicate signups by returning a fake user with no identities.
+        if (!data.user || (Array.isArray(data.user.identities) && data.user.identities.length === 0)) {
+            return authError(res, 409, "EMAIL_ALREADY_REGISTERED", "An account with this email already exists")
+        }
+
+        return res.status(201).json({ success: true, data: { auth: data } })
     } catch (err) {
         console.error("Error signing up:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }
 
@@ -59,25 +129,42 @@ export const SignIn = async (req: Request, res: Response) => {
     const { email, password } = req.body || {}
     const cleanEmail = String(email || "").trim().toLowerCase()
 
-    if (!cleanEmail || !password) {
-        return res.status(400).json({ success: false, error: "email and password are required" })
+    const details: Record<string, string> = {}
+    const invalidEmail = emailIssue(email)
+    const invalidPassword = passwordIssue(password, "password", false)
+    if (invalidEmail) details.email = invalidEmail
+    if (invalidPassword) details.password = invalidPassword
+    if (Object.keys(details).length) {
+        return authError(res, 400, "VALIDATION_ERROR", "Please provide a valid email and password", details)
     }
 
     try {
+        if (await rejectAuthenticatedRequest(req, res)) return
+
         const { data, error } = await supabase.auth.signInWithPassword({
             email: cleanEmail,
             password,
         })
 
         if (error) {
-            console.error("Supabase signIn error:", error)
-            return res.status(401).json({ success: false, error: error.message || error })
+            logAuthFailure("Sign-in failed", error)
+            if (error.code === "email_not_confirmed") {
+                return authError(res, 403, "EMAIL_NOT_CONFIRMED", "Please verify your email before signing in")
+            }
+            if (String(error.code || "").includes("rate_limit")) {
+                return authError(res, 429, "RATE_LIMITED", "Too many sign-in attempts. Please try again later")
+            }
+            return authError(res, 401, "INVALID_CREDENTIALS", "Invalid email or password")
+        }
+
+        if (!data.session || !data.user) {
+            return authError(res, 401, "INVALID_CREDENTIALS", "Sign in failed. No valid session was created")
         }
 
         return res.status(200).json({ success: true, data: { session: data.session, user: data.user } })
     } catch (err) {
         console.error("Error signing in:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }
 
@@ -85,10 +172,10 @@ export const SyncGoogleProfile = async (req: Request, res: Response) => {
     try {
         const user = req.user!
 
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.getUserById(user.id)
+        const { data: authData, error: authLookupError } = await supabaseAdmin.auth.admin.getUserById(user.id)
 
-        if (authError || !authData.user) {
-            return res.status(404).json({ success: false, error: "Auth user not found" })
+        if (authLookupError || !authData.user) {
+            return authError(res, 404, "AUTH_USER_NOT_FOUND", "Auth user not found")
         }
 
         const authUser = authData.user
@@ -97,11 +184,16 @@ export const SyncGoogleProfile = async (req: Request, res: Response) => {
         const name = String(metadata.full_name || metadata.name || email.split("@")[0])
         const profileImageUrl: string | null = metadata.avatar_url || metadata.picture || null
 
-        const { data: existing } = await supabaseAdmin
+        const { data: existing, error: existingError } = await supabaseAdmin
             .from("users")
             .select("google_image_synced")
             .eq("auth_user_id", authUser.id)
             .maybeSingle()
+
+        if (existingError) {
+            console.error("Find Google profile error:", existingError)
+            return authError(res, 500, "DATABASE_ERROR", "Failed to read user profile")
+        }
 
         const alreadySynced = existing?.google_image_synced === true
         const payload: Record<string, any> = {
@@ -126,31 +218,35 @@ export const SyncGoogleProfile = async (req: Request, res: Response) => {
 
         if (profileError) {
             console.error("Sync Google profile error:", profileError)
-            return res.status(500).json({ success: false, error: "Failed to sync profile" })
+            return authError(res, 500, "DATABASE_ERROR", "Failed to sync profile")
         }
 
         return res.status(200).json({ success: true, data: { profile } })
     } catch (err) {
         console.error("Error syncing Google profile:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }
 
 export const GoogleSignIn = async (req: Request, res: Response) => {
     const { id_token } = req.body || {}
 
-    if (!id_token) {
-        return res.status(400).json({ success: false, error: "id_token is required" })
+    const invalidToken = tokenIssue(id_token, "id_token")
+    if (invalidToken) {
+        return authError(res, 400, "VALIDATION_ERROR", "A valid Google ID token is required", { id_token: invalidToken })
     }
 
     try {
+        if (await rejectAuthenticatedRequest(req, res)) return
+
         const { data, error } = await supabaseAdmin.auth.signInWithIdToken({
             provider: "google",
-            token: id_token,
+            token: String(id_token).trim(),
         })
 
         if (error || !data.user) {
-            return res.status(401).json({ success: false, error: "Invalid Google token" })
+            if (error) logAuthFailure("Google sign-in failed", error)
+            return authError(res, 401, "INVALID_TOKEN", "Invalid or expired Google token")
         }
 
         const authUser = data.user
@@ -160,11 +256,16 @@ export const GoogleSignIn = async (req: Request, res: Response) => {
             authUser.user_metadata?.name ||
             email.split("@")[0]
 
-        const { data: existingProfile } = await supabaseAdmin
+        const { data: existingProfile, error: lookupError } = await supabaseAdmin
             .from("users")
             .select("*")
             .eq("auth_user_id", authUser.id)
             .maybeSingle()
+
+        if (lookupError) {
+            console.error("Google profile lookup error:", lookupError)
+            return authError(res, 500, "DATABASE_ERROR", "Failed to read user profile")
+        }
 
         let profile = existingProfile
 
@@ -182,7 +283,7 @@ export const GoogleSignIn = async (req: Request, res: Response) => {
 
             if (profileError) {
                 console.error("Google sign in profile create error:", profileError)
-                return res.status(500).json({ success: false, error: "Failed to create profile" })
+                return authError(res, 500, "DATABASE_ERROR", "Failed to create profile")
             }
 
             profile = newProfile
@@ -198,7 +299,7 @@ export const GoogleSignIn = async (req: Request, res: Response) => {
         })
     } catch (err) {
         console.error("Google sign in error:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }
 
@@ -206,8 +307,9 @@ export const RefreshToken = async (req: Request, res: Response) => {
     const { refresh_token } = req.body || {}
     const cleanRefreshToken = String(refresh_token || "").trim()
 
-    if (!cleanRefreshToken) {
-        return res.status(400).json({ success: false, error: "refresh_token is required" })
+    const invalidToken = tokenIssue(refresh_token, "refresh_token")
+    if (invalidToken) {
+        return authError(res, 400, "VALIDATION_ERROR", "A valid refresh token is required", { refresh_token: invalidToken })
     }
 
     try {
@@ -216,8 +318,12 @@ export const RefreshToken = async (req: Request, res: Response) => {
         })
 
         if (error) {
-           console.log("Refresh token already used. User needs to login again.");
-            return res.status(401).json({ success: false, error: error.message || "Invalid refresh token" })
+            logAuthFailure("Session refresh failed", error)
+            return authError(res, 401, "INVALID_TOKEN", "Refresh token is invalid, expired, or already used. Please sign in again")
+        }
+
+        if (!data.session || !data.user) {
+            return authError(res, 401, "INVALID_TOKEN", "No valid session could be created. Please sign in again")
         }
 
         return res.status(200).json({
@@ -229,7 +335,7 @@ export const RefreshToken = async (req: Request, res: Response) => {
         })
     } catch (err) {
         console.error("Error refreshing token:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }
 
@@ -237,49 +343,80 @@ export const ForgotPassword = async (req: Request, res: Response) => {
     const { email } = req.body || {}
     const cleanEmail = String(email || "").trim().toLowerCase()
 
-    if (!cleanEmail) {
-        return res.status(400).json({ success: false, error: "email is required" })
+    const invalidEmail = emailIssue(email)
+    if (invalidEmail) {
+        return authError(res, 400, "VALIDATION_ERROR", "A valid email is required", { email: invalidEmail })
     }
 
     try {
+        const { data: existingAccount, error: lookupError } = await supabaseAdmin
+            .from("users")
+            .select("id")
+            .ilike("email", cleanEmail)
+            .maybeSingle()
+
+        if (lookupError) {
+            console.error("Forgot password email lookup error:", lookupError)
+            return authError(res, 500, "DATABASE_ERROR", "Unable to verify this email address")
+        }
+        if (!existingAccount) {
+            return authError(res, 404, "EMAIL_NOT_REGISTERED", "No account is registered with this email address")
+        }
+
         const redirectTo = process.env.SUPABASE_RESET_PASSWORD_URL
         const options = redirectTo ? { redirectTo } : undefined
         const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, options)
 
         if (error) {
-            console.error("Supabase forgot password error:", error)
-            return res.status(400).json({ success: false, error: error.message || error })
+            logAuthFailure("Password-reset request failed", error)
+            if (String(error.code || "").includes("rate_limit")) {
+                return authError(res, 429, "RATE_LIMITED", "Too many password reset requests. Please try again later")
+            }
+            return authError(res, 400, "AUTH_ERROR", error.message || "Unable to send password reset email")
         }
 
-        return res.status(200).json({ success: true, data: { message: "Password reset email sent" } })
+        return res.status(200).json({
+            success: true,
+            data: { message: "Password reset link has been sent to the registered email address" },
+        })
     } catch (err) {
         console.error("Error in forgot password:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }
 
 export const ResetPassword = async (req: Request, res: Response) => {
     const { newPassword, access_token } = req.body || {}
     const cleanPassword = String(newPassword || "")
-    const token = getBearerToken(req) || String(access_token || "")
+    const token = getBearerToken(req) || (typeof access_token === "string" ? access_token.trim() : "")
 
-    if (!cleanPassword || !token) {
-        return res.status(400).json({ success: false, error: "newPassword and access_token are required" })
+    const details: Record<string, string> = {}
+    const invalidPassword = passwordIssue(newPassword, "newPassword", true)
+    const invalidToken = tokenIssue(token, "access_token")
+    if (invalidPassword) details.newPassword = invalidPassword
+    if (invalidToken) details.access_token = invalidToken
+    if (Object.keys(details).length) {
+        return authError(res, 400, "VALIDATION_ERROR", "A valid token and new password are required", details)
     }
 
     try {
         const authClient = createAuthClient(token)
+        const { data: tokenData, error: tokenError } = await authClient.auth.getUser()
+        if (tokenError || !tokenData.user) {
+            return authError(res, 401, "INVALID_TOKEN", "Password reset token is invalid or expired")
+        }
+
         const { data, error } = await authClient.auth.updateUser({ password: cleanPassword })
 
         if (error) {
-            console.error("Supabase reset password error:", error)
-            return res.status(400).json({ success: false, error: error.message || error })
+            logAuthFailure("Password reset failed", error)
+            return authError(res, 400, "AUTH_ERROR", error.message || "Unable to reset password")
         }
 
         return res.status(200).json({ success: true, data: { user: data.user } })
     } catch (err) {
         console.error("Error resetting password:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }
 
@@ -288,12 +425,24 @@ export const ChangePassword = async (req: Request, res: Response) => {
     const cleanOldPassword = String(oldPassword || "")
     const cleanNewPassword = String(newPassword || "")
 
-    if (!cleanOldPassword || !cleanNewPassword) {
-        return res.status(400).json({ success: false, error: "oldPassword and newPassword are required" })
+    const details: Record<string, string> = {}
+    const invalidOldPassword = passwordIssue(oldPassword, "oldPassword", false)
+    const invalidNewPassword = passwordIssue(newPassword, "newPassword", true)
+    if (invalidOldPassword) details.oldPassword = invalidOldPassword
+    if (invalidNewPassword) details.newPassword = invalidNewPassword
+    if (cleanOldPassword && cleanNewPassword && cleanOldPassword === cleanNewPassword) {
+        details.newPassword = "newPassword must be different from oldPassword"
+    }
+    if (Object.keys(details).length) {
+        return authError(res, 400, "VALIDATION_ERROR", "Please provide valid password values", details)
     }
 
     try {
         const user = req.user!
+
+        if (!user.email) {
+            return authError(res, 400, "AUTH_ERROR", "Password change is unavailable because this account has no email")
+        }
 
         const { error: reauthError } = await supabase.auth.signInWithPassword({
             email: String(user.email || ""),
@@ -301,8 +450,8 @@ export const ChangePassword = async (req: Request, res: Response) => {
         })
 
         if (reauthError) {
-            console.error("Supabase re-authentication error:", reauthError)
-            return res.status(401).json({ success: false, error: reauthError.message || "Old password is incorrect" })
+            logAuthFailure("Password re-authentication failed", reauthError)
+            return authError(res, 401, "INVALID_CREDENTIALS", "Old password is incorrect")
         }
 
         const { data, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
@@ -311,13 +460,13 @@ export const ChangePassword = async (req: Request, res: Response) => {
 
         if (updateError) {
             console.error("Supabase change password error:", updateError)
-            return res.status(400).json({ success: false, error: updateError.message || updateError })
+            return authError(res, 400, "AUTH_ERROR", updateError.message || "Unable to change password")
         }
 
         return res.status(200).json({ success: true, data: { user: data.user } })
     } catch (err) {
         console.error("Error changing password:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }
 
@@ -326,8 +475,13 @@ export const UpdateName = async (req: Request, res: Response) => {
     const cleanFirstName = String(first_name || "").trim()
     const cleanLastName = String(last_name || "").trim()
 
-    if (!cleanFirstName || !cleanLastName) {
-        return res.status(400).json({ success: false, error: "first_name and last_name are required" })
+    const details: Record<string, string> = {}
+    const invalidFirstName = nameIssue(first_name, "first_name")
+    const invalidLastName = nameIssue(last_name, "last_name")
+    if (invalidFirstName) details.first_name = invalidFirstName
+    if (invalidLastName) details.last_name = invalidLastName
+    if (Object.keys(details).length) {
+        return authError(res, 400, "VALIDATION_ERROR", "Please provide a valid first and last name", details)
     }
 
     try {
@@ -339,14 +493,17 @@ export const UpdateName = async (req: Request, res: Response) => {
             .update({ name: fullName, updated_at: new Date().toISOString() })
             .eq("auth_user_id", user.id)
             .select("id, auth_user_id, name, email, profile_image_url, is_verified, last_sign_in_at, created_at, updated_at")
-            .single()
+            .maybeSingle()
 
-        if (profileError || !updatedProfile) {
+        if (profileError) {
             console.error("Update name profile error:", profileError)
-            return res.status(500).json({ success: false, error: "Failed to update user profile" })
+            return authError(res, 500, "DATABASE_ERROR", "Failed to update user profile")
+        }
+        if (!updatedProfile) {
+            return authError(res, 404, "PROFILE_NOT_FOUND", "User profile not found")
         }
 
-        const { data: updatedAuthUser, error: authError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+        const { data: updatedAuthUser, error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
             user_metadata: {
                 first_name: cleanFirstName,
                 last_name: cleanLastName,
@@ -357,21 +514,37 @@ export const UpdateName = async (req: Request, res: Response) => {
             },
         })
 
-        if (authError) {
-            console.error("Update name auth metadata error:", authError)
-            return res.status(400).json({ success: false, error: authError.message || authError })
+        if (authUpdateError) {
+            console.error("Update name auth metadata error:", authUpdateError)
+            return authError(res, 400, "AUTH_ERROR", authUpdateError.message || "Failed to update auth metadata")
         }
 
         return res.status(200).json({ success: true, data: { user: updatedAuthUser.user, profile: updatedProfile } })
     } catch (err) {
         console.error("Error updating name:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }
 
 export const RemoveProfileImage = async (req: Request, res: Response) => {
     try {
         const user = req.user!
+        const { data: currentProfile, error: lookupError } = await supabaseAdmin
+            .from("users")
+            .select("profile_image_url")
+            .eq("auth_user_id", user.id)
+            .maybeSingle()
+
+        if (lookupError) {
+            console.error("Find profile image error:", lookupError)
+            return authError(res, 500, "DATABASE_ERROR", "Failed to read user profile")
+        }
+        if (!currentProfile) {
+            return authError(res, 404, "PROFILE_NOT_FOUND", "User profile not found")
+        }
+        if (!currentProfile.profile_image_url) {
+            return authError(res, 404, "PROFILE_IMAGE_NOT_FOUND", "No profile image is set")
+        }
 
         const { data: updatedProfile, error } = await supabaseAdmin
             .from("users")
@@ -381,17 +554,20 @@ export const RemoveProfileImage = async (req: Request, res: Response) => {
             })
             .eq("auth_user_id", user.id)
             .select("id, auth_user_id, name, email, profile_image_url, is_verified, last_sign_in_at, created_at, updated_at")
-            .single()
+            .maybeSingle()
 
-        if (error || !updatedProfile) {
+        if (error) {
             console.error("Remove profile image error:", error)
-            return res.status(500).json({ success: false, error: "Failed to remove profile image" })
+            return authError(res, 500, "DATABASE_ERROR", "Failed to remove profile image")
+        }
+        if (!updatedProfile) {
+            return authError(res, 404, "PROFILE_NOT_FOUND", "User profile not found")
         }
 
         return res.status(200).json({ success: true, data: { profile: updatedProfile } })
     } catch (err) {
         console.error("Error removing profile image:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }
 
@@ -399,7 +575,7 @@ export const Logout = async (req: Request, res: Response) => {
     const token = getBearerToken(req)
 
     if (!token) {
-        return res.status(401).json({ success: false, error: "Missing authorization token" })
+        return authError(res, 401, "INVALID_AUTH_HEADER", "Missing or invalid authorization token")
     }
 
     try {
@@ -407,14 +583,14 @@ export const Logout = async (req: Request, res: Response) => {
         const { error } = await authClient.auth.signOut()
 
         if (error) {
-            console.error("Supabase logout error:", error)
-            return res.status(400).json({ success: false, error: error.message || error })
+            logAuthFailure("Logout failed", error)
+            return authError(res, 401, "INVALID_TOKEN", error.message || "Unable to log out this session")
         }
 
         return res.status(200).json({ success: true, data: { message: "Logged out successfully" } })
     } catch (err) {
         console.error("Error logging out:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }
 
@@ -430,7 +606,7 @@ export const DeleteAccount = async (req: Request, res: Response) => {
 
         if (profileLookupError) {
             console.error("Find user profile before delete error:", profileLookupError)
-            return res.status(500).json({ success: false, error: "Failed to find user profile" })
+            return authError(res, 500, "DATABASE_ERROR", "Failed to find user profile")
         }
 
         const deleteRows = async (table: string, column: string, value: string | number) => {
@@ -500,14 +676,14 @@ export const DeleteAccount = async (req: Request, res: Response) => {
 
         if (profileError) {
             console.error("Delete user profile error:", profileError)
-            return res.status(500).json({ success: false, error: "Failed to delete user profile" })
+            return authError(res, 500, "DATABASE_ERROR", "Failed to delete user profile")
         }
 
-        const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
+        const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
 
-        if (authError) {
-            console.error("Delete auth user error:", authError)
-            return res.status(500).json({ success: false, error: "Failed to delete user account" })
+        if (authDeleteError) {
+            console.error("Delete auth user error:", authDeleteError)
+            return authError(res, 500, "AUTH_ERROR", "Failed to delete user account")
         }
 
         return res.status(200).json({
@@ -516,7 +692,7 @@ export const DeleteAccount = async (req: Request, res: Response) => {
         })
     } catch (err) {
         console.error("Error deleting account:", err)
-        return res.status(500).json({ success: false, error: "Failed to delete user account data" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Failed to delete user account data")
     }
 }
 
@@ -530,8 +706,12 @@ export const CheckSession = async (req: Request, res: Response) => {
             .eq("auth_user_id", user.id)
             .maybeSingle()
 
-        if (profileError || !userProfile) {
-            return res.status(401).json({ success: false, error: "User profile not found" })
+        if (profileError) {
+            console.error("Check session profile error:", profileError)
+            return authError(res, 500, "DATABASE_ERROR", "Failed to read user profile")
+        }
+        if (!userProfile) {
+            return authError(res, 404, "PROFILE_NOT_FOUND", "User profile not found")
         }
 
         return res.status(200).json({
@@ -544,7 +724,7 @@ export const CheckSession = async (req: Request, res: Response) => {
         })
     } catch (err) {
         console.error("Check session error:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }
 
@@ -556,16 +736,19 @@ export const GetCurrentUser = async (req: Request, res: Response) => {
             .from("users")
             .select("id, auth_user_id, name, email, profile_image_url, is_verified, onboarding_completed, last_sign_in_at, created_at, updated_at")
             .eq("auth_user_id", user.id)
-            .single()
+            .maybeSingle()
 
         if (profileError) {
             console.error("Get current user profile error:", profileError)
-            return res.status(200).json({ success: true, data: { user, profile: null } })
+            return authError(res, 500, "DATABASE_ERROR", "Failed to read user profile")
+        }
+        if (!profile) {
+            return authError(res, 404, "PROFILE_NOT_FOUND", "User profile not found")
         }
 
         return res.status(200).json({ success: true, data: { user, profile } })
     } catch (err) {
         console.error("Error getting current user:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }

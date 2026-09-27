@@ -217,7 +217,7 @@ app.use(helmet({
 
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 1000,
+    max: 5000,
     message: { success: false, error: "Too many requests, please try again later" },
     standardHeaders: true,
     legacyHeaders: false,
@@ -225,7 +225,7 @@ const apiLimiter = rateLimit({
 
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 500,
+    max: 2000,
     message: { success: false, error: "Too many auth attempts, please try again later" },
     standardHeaders: true,
     legacyHeaders: false,

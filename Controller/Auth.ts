@@ -60,9 +60,10 @@ const rejectAuthenticatedRequest = async (req: Request, res: Response) => {
 }
 
 export const SignUp = async (req: Request, res: Response) => {
-    const { email, password, username } = req.body || {}
+    const { email, password, username, emailRedirectTo } = req.body || {}
     const cleanEmail = String(email || "").trim().toLowerCase()
     const cleanUsername = String(username || "").trim()
+    const cleanEmailRedirectTo = String(emailRedirectTo || "").trim()
 
     const details: Record<string, string> = {}
     const invalidEmail = emailIssue(email)
@@ -96,6 +97,7 @@ export const SignUp = async (req: Request, res: Response) => {
             email: cleanEmail,
             password,
             options: {
+                emailRedirectTo: cleanEmailRedirectTo || undefined,
                 data: {
                     username: cleanUsername,
                     name: cleanUsername,

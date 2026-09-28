@@ -71,8 +71,23 @@ async function convertFile(mp3Path) {
   }
 
   const afterSize = fs.statSync(m4aPath).size;
+  if (afterSize === 0) {
+    console.error(`  FAILED: ${path.basename(m4aPath)} is empty`);
+    fs.unlinkSync(m4aPath);
+    return { mp3Path, m4aPath, failed: true };
+  }
+
+  try {
+    fs.unlinkSync(mp3Path);
+  } catch (err) {
+    console.error(`  Converted, but could not delete: ${path.basename(mp3Path)}`);
+    console.error(err.message);
+    return { mp3Path, m4aPath, beforeSize, afterSize, converted: true, deleteFailed: true };
+  }
+
   console.log(`  Done: ${path.basename(m4aPath)} (${formatBytes(afterSize)})`);
-  return { mp3Path, m4aPath, beforeSize, afterSize, converted: true };
+  console.log(`  Deleted source: ${path.basename(mp3Path)}`);
+  return { mp3Path, m4aPath, beforeSize, afterSize, converted: true, mp3Deleted: true };
 }
 
 async function main() {
@@ -102,9 +117,12 @@ async function main() {
   const converted = results.filter((r) => r.converted);
   const skipped = results.filter((r) => r.skipped);
   const failed = results.filter((r) => r.failed);
+  const deleteFailed = results.filter((r) => r.deleteFailed);
 
   console.log('\n========== SUMMARY ==========');
   console.log(`Converted: ${converted.length}`);
+  console.log(`Source MP3s deleted: ${converted.length - deleteFailed.length}`);
+  console.log(`Source MP3 delete failures: ${deleteFailed.length}`);
   console.log(`Skipped (already done): ${skipped.length}`);
   console.log(`Failed: ${failed.length}`);
 
@@ -113,10 +131,12 @@ async function main() {
     failed.forEach((r) => console.log(`  - ${r.mp3Path}`));
   }
 
+  if (deleteFailed.length > 0) {
+    console.log('\nConverted successfully, but these source MP3 files could not be deleted:');
+    deleteFailed.forEach((r) => console.log(`  - ${r.mp3Path}`));
+  }
+
   if (converted.length > 0) {
-    console.log(
-      '\nOriginal .mp3 files were NOT deleted — test playback in the app first, then remove them manually once confirmed.'
-    );
     console.log('\n---------------------------------------------------------------');
     console.log('NEXT STEP: run this SQL in the Supabase SQL editor to point the');
     console.log('database at the new .m4a files:');

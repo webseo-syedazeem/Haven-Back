@@ -16,12 +16,56 @@ const logAuthFailure = (action: string, error: AuthServiceError) => {
         const message = String(error.message || error.code || "Authentication request rejected")
             .replace(/\s+/g, " ")
             .trim()
-        console.warn(`[Auth] ${action}: ${message}`)
+        const status = error.status
+        const code = String(error.code || "unknown")
+        console.warn(`[Auth] ${action}: status=${status} code=${code} message=${message}`)
         return
     }
 
     // Keep the complete error for unexpected/provider-side failures so they remain debuggable.
     console.error(`[Auth] ${action}:`, error)
+}
+
+const duplicateSignUpCodes = new Set(["user_already_exists", "email_exists"])
+
+const isRateLimitError = (error: AuthServiceError) => {
+    const code = String(error.code || "").toLowerCase()
+    return error.status === 429 || code.includes("rate_limit")
+}
+
+type SignUpErrorCode = Parameters<typeof authError>[2]
+
+const describeAuthServiceError = (error: AuthServiceError | null) => error ? {
+    name: String((error as AuthServiceError & { name?: string }).name || "AuthError"),
+    status: error.status ?? null,
+    code: error.code ?? null,
+    message: error.message ?? null,
+} : null
+
+const logSignUpDecision = (branch: string, details: Record<string, unknown> = {}) => {
+    console.log("[Auth][SignUp] decision", { branch, ...details })
+}
+
+const logSignUpFinalResponse = (
+    branch: string,
+    httpStatus: number,
+    code: SignUpErrorCode | null,
+    message: string | null,
+) => {
+    console.log("[Auth][SignUp] final response", { branch, httpStatus, code, message })
+}
+
+const sendSignUpError = (
+    res: Response,
+    branch: string,
+    status: number,
+    code: SignUpErrorCode,
+    message: string,
+    details?: Record<string, string>,
+) => {
+    logSignUpDecision(branch)
+    logSignUpFinalResponse(branch, status, code, message)
+    return authError(res, status, code, message, details)
 }
 
 const getBearerToken = (req: Request) => {
@@ -42,24 +86,45 @@ const createAuthClient = (token: string) =>
         },
     })
 
-const rejectAuthenticatedRequest = async (req: Request, res: Response) => {
+const rejectAuthenticatedRequest = async (req: Request, res: Response, diagnosticContext?: "SignUp") => {
     const authHeader = String(req.headers.authorization || "").trim()
-    if (!authHeader) return false
+    if (!authHeader) {
+        if (diagnosticContext === "SignUp") logSignUpDecision("auth-precheck-skipped-no-authorization-header")
+        return false
+    }
 
     const token = getBearerToken(req)
     if (!token) {
+        if (diagnosticContext === "SignUp") {
+            logSignUpDecision("auth-precheck-invalid-authorization-header")
+            logSignUpFinalResponse("auth-precheck-invalid-authorization-header", 401, "INVALID_AUTH_HEADER", "Authorization header must use the Bearer token format")
+        }
         authError(res, 401, "INVALID_AUTH_HEADER", "Authorization header must use the Bearer token format")
         return true
     }
 
-    const { data } = await createAuthClient(token).auth.getUser()
-    if (!data.user) return false
+    const { data, error } = await createAuthClient(token).auth.getUser()
+    if (diagnosticContext === "SignUp") {
+        console.log("[Auth][SignUp] raw authenticated-request pre-check response", {
+            error: describeAuthServiceError(error),
+            userPresent: Boolean(data.user),
+        })
+    }
+    if (!data.user) {
+        if (diagnosticContext === "SignUp") logSignUpDecision("auth-precheck-passed-no-authenticated-user")
+        return false
+    }
 
+    if (diagnosticContext === "SignUp") {
+        logSignUpDecision("auth-precheck-rejected-already-authenticated")
+        logSignUpFinalResponse("auth-precheck-rejected-already-authenticated", 409, "ALREADY_AUTHENTICATED", "You are already signed in. Log out before signing in or creating another account")
+    }
     authError(res, 409, "ALREADY_AUTHENTICATED", "You are already signed in. Log out before signing in or creating another account")
     return true
 }
 
 export const SignUp = async (req: Request, res: Response) => {
+    console.log("[AUTH BUILD MARKER] SignUp handler v2 - 429 rate-limit fix active")
     const { email, password, username, emailRedirectTo } = req.body || {}
     const cleanEmail = String(email || "").trim().toLowerCase()
     const cleanUsername = String(username || "").trim()
@@ -73,25 +138,35 @@ export const SignUp = async (req: Request, res: Response) => {
     if (invalidPassword) details.password = invalidPassword
     if (invalidUsername) details.username = invalidUsername
     if (Object.keys(details).length) {
-        return authError(res, 400, "VALIDATION_ERROR", "Please provide valid signup details", details)
+        return sendSignUpError(res, "request-validation-failed", 400, "VALIDATION_ERROR", "Please provide valid signup details", details)
     }
 
     try {
-        if (await rejectAuthenticatedRequest(req, res)) return
+        if (await rejectAuthenticatedRequest(req, res, "SignUp")) return
 
         const { data: existingProfile, error: lookupError } = await supabaseAdmin
             .from("users")
             .select("id")
             .eq("email", cleanEmail)
             .maybeSingle()
+        console.log("[Auth][SignUp] public.users email pre-check response", {
+            matchingProfilePresent: Boolean(existingProfile),
+            error: lookupError ? {
+                code: lookupError.code,
+                message: lookupError.message,
+                details: lookupError.details,
+                hint: lookupError.hint,
+            } : null,
+        })
 
         if (lookupError) {
             console.error("Signup email lookup error:", lookupError)
-            return authError(res, 500, "DATABASE_ERROR", "Unable to verify whether this email is already registered")
+            return sendSignUpError(res, "public-users-precheck-error", 500, "DATABASE_ERROR", "Unable to verify whether this email is already registered")
         }
         if (existingProfile) {
-            return authError(res, 409, "EMAIL_ALREADY_REGISTERED", "An account with this email already exists")
+            return sendSignUpError(res, "public-users-precheck-found-profile", 409, "EMAIL_ALREADY_REGISTERED", "An account with this email already exists")
         }
+        logSignUpDecision("public-users-precheck-passed-no-profile")
 
         const { data, error } = await supabase.auth.signUp({
             email: cleanEmail,
@@ -107,23 +182,57 @@ export const SignUp = async (req: Request, res: Response) => {
             },
         })
 
+        console.log("[Auth][SignUp] raw Supabase signUp response (before app mapping)", {
+            error: describeAuthServiceError(error),
+            rawError: error,
+            data: {
+                userPresent: Boolean(data.user),
+                userId: data.user?.id ?? null,
+                identitiesPresent: Array.isArray(data.user?.identities),
+                identityCount: Array.isArray(data.user?.identities) ? data.user.identities.length : null,
+                userMetadataPresent: Boolean(data.user?.user_metadata && Object.keys(data.user.user_metadata).length),
+                sessionPresent: Boolean(data.session),
+            },
+        })
+
         if (error) {
             logAuthFailure("Sign-up failed", error)
-            const duplicate = ["user_already_exists", "email_exists"].includes(String(error.code || ""))
-            return duplicate
-                ? authError(res, 409, "EMAIL_ALREADY_REGISTERED", "An account with this email already exists")
-                : authError(res, 400, "AUTH_ERROR", error.message || "Unable to create account")
+            const errorCode = String(error.code || "").toLowerCase()
+
+            if (duplicateSignUpCodes.has(errorCode)) {
+                return sendSignUpError(res, "supabase-explicit-duplicate-error", 409, "EMAIL_ALREADY_REGISTERED", "An account with this email already exists")
+            }
+
+            if (isRateLimitError(error)) {
+                return sendSignUpError(
+                    res,
+                    "supabase-rate-limit-error",
+                    429,
+                    "RATE_LIMITED",
+                    "Too many signup or confirmation-email attempts. Please wait before trying again",
+                )
+            }
+
+            return sendSignUpError(res, "supabase-unmapped-auth-error", 400, "AUTH_ERROR", error.message || "Unable to create account")
         }
 
         // Supabase can hide duplicate signups by returning a fake user with no identities.
-        if (!data.user || (Array.isArray(data.user.identities) && data.user.identities.length === 0)) {
-            return authError(res, 409, "EMAIL_ALREADY_REGISTERED", "An account with this email already exists")
+        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+            return sendSignUpError(res, "supabase-obfuscated-duplicate-empty-identities", 409, "EMAIL_ALREADY_REGISTERED", "An account with this email already exists")
         }
 
+        // A successful signup response without a user is not proof of a duplicate.
+        if (!data.user) {
+            console.error("[Auth] Sign-up failed: Supabase returned no error and no user")
+            return sendSignUpError(res, "supabase-success-without-user", 502, "AUTH_ERROR", "The authentication service did not create the account. Please try again")
+        }
+
+        logSignUpDecision("signup-created", { userPresent: true, identityCount: data.user.identities?.length ?? null })
+        logSignUpFinalResponse("signup-created", 201, null, null)
         return res.status(201).json({ success: true, data: { auth: data } })
     } catch (err) {
         console.error("Error signing up:", err)
-        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
+        return sendSignUpError(res, "unexpected-signup-exception", 500, "INTERNAL_SERVER_ERROR", "Internal server error")
     }
 }
 

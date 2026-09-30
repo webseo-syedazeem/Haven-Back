@@ -28,13 +28,21 @@ to exactly one mode family:
 | `relax_causes` | string[] | **multi** | ❌ | ❌ | ✅ | "What's usually causing your stress?" |
 | `calming_moments` | string | single | ❌ | ❌ | ✅ | "When do you most need to feel calmer?" |
 
+> **Current app behavior:** `target_minutes` remains an optional, nullable API
+> field for Focus and Sleep, but the app does **not currently collect or send
+> it** because all soundscapes are one hour long. Keep the field available for
+> when duration variety and a duration question are reintroduced.
+
 So the complete payload per mode is:
 
 ```
-FOCUS  →  mode, user_goals, mode_breakers, mode_areas, target_minutes
-SLEEP  →  mode, user_goals, mode_breakers, mode_areas, target_minutes
+FOCUS  →  mode, user_goals, mode_breakers, mode_areas
+SLEEP  →  mode, user_goals, mode_breakers, mode_areas
 RELAX  →  mode, user_goals, main_goal, relax_causes, calming_moments
 ```
+
+`target_minutes` is still accepted for Focus/Sleep as an optional future-facing
+field, but it is intentionally absent from the app's current payloads.
 
 **Just omit the fields your mode doesn't use.** They stay at their database
 defaults, which are exactly what "not collected" should look like:
@@ -47,8 +55,9 @@ defaults, which are exactly what "not collected" should look like:
 ### Things that are easy to get wrong
 
 - **`target_minutes` is an integer number of minutes — `45`, not `"45 min"`.**
-  It is an `integer` column. A numeric string (`"45"`) is accepted and coerced,
-  but anything with units or decimals in it is a `400`.
+  This applies if a future client sends it. It is an optional nullable `integer`
+  column; the current app omits it. A numeric string (`"45"`) is accepted and
+  coerced, but anything with units or decimals in it is a `400`.
 - **`mode_breakers` and `mode_areas` are Focus + Sleep only.** Relax has no
   screen for either. Do not send them in a Relax submission.
 - **`main_goal`, `relax_causes` and `calming_moments` are Relax only.** Focus and
@@ -114,9 +123,11 @@ the option sets established across the project's screens.
 
 ### `target_minutes` — Focus + Sleep, single integer
 
-Focus's confirmed options are **25 / 45 / 90**. The backend accepts any
-non-negative integer, so a Sleep option list (or a "90+" bucket sent as `90`)
-needs no backend change.
+**Currently not collected by the app:** all soundscapes are one hour long, so
+there is no duration question in the Focus or Sleep flow and submissions omit
+this field. The nullable field remains part of the API for future duration
+variety. If reintroduced, the backend accepts any non-negative integer; earlier
+Focus options were **25 / 45 / 90**.
 
 ### `main_goal` — **Relax only**, single-select
 
@@ -142,17 +153,19 @@ Auth required. Saves the user's answers and sets `users.onboarding_completed = t
 later and omits something they previously answered, it is reset to `[]` / `null`.
 Always resend everything relevant to the mode on a resubmit.
 
-### Focus request
+### Focus request (current app)
 
 ```json
 {
   "mode": "focus",
   "user_goals": "Focus deeply",
   "mode_breakers": ["Background noise", "Phone distractions"],
-  "mode_areas": ["At a desk", "Studying"],
-  "target_minutes": 45
+  "mode_areas": ["At a desk", "Studying"]
 }
 ```
+
+The current app intentionally omits `target_minutes`. A future client may add
+`"target_minutes": 45` to the same payload without a contract or schema change.
 
 ### Relax request
 
@@ -294,7 +307,7 @@ because several fields are deliberately stored-only:
 | `relax_causes` | **The same heuristic, same keyword sets** — an answer means the same thing whichever screen it came from. In today's Relax option list only "Overthinking" matches (→ lower intensity). |
 | `mode_areas` | Soft boost when a mapped keyword appears in the soundscape's `subcategory` / `one_line_description` / `designed_for` / `best_use`. Focus: Studying→"study", Creative work→"creative", On the move→"travel"/"commute". Sleep: Falling asleep→"fall asleep", During travel→"travel", After waking→"back to sleep". |
 | `calming_moments` | The same mechanism at a **lower weight**, and only for "In the evenings"→"evening" and "At night"→"night". |
-| `target_minutes` | Direct duration closeness against `duration_seconds`: within 5 min scores higher than within 15 min. Falls back to `user_sound_preferences.typical_duration` if `target_minutes` is unset. |
+| `target_minutes` | Direct duration closeness against `duration_seconds`: within 5 min scores higher than within 15 min. The current app does not collect it. Ranking falls back to `user_sound_preferences.typical_duration`; if that is also unset or contains no number, the duration term is skipped with no penalty. |
 
 ### Stored but NOT used in ranking
 
@@ -318,8 +331,9 @@ soundscapes only 1 mentions "evening" and none mention "night", so "At night"
 currently boosts nothing. It degrades safely — no match simply means no bonus.
 
 None of the soft signals can ever empty a result set; they only add to a score.
-A Relax user's `target_minutes` being `null` costs them nothing, because the
-duration term is skipped for every candidate equally.
+When `target_minutes` is `null` and no usable `typical_duration` fallback exists,
+the duration term is skipped for every candidate equally. This costs the user
+nothing and leaves all other ranking signals unchanged.
 
 ### Hard exclusion (unrelated to this table)
 

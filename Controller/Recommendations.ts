@@ -195,14 +195,7 @@ const getUserSignals = async (appUserId: string | number | null): Promise<UserSi
             .select("*")
             .eq("user_id", appUserId)
             .maybeSingle(),
-        // user_goals and main_goal are intentionally NOT selected. Both are stored-only:
-        // user_goals ("Choose a goal" — Focus deeply / Feel calmer / Sleep easier / …)
-        // restates the mode the user already picked, and mode is the hard filter, so any
-        // mapping would be perfectly collinear with it — every surviving row would get
-        // the same bonus and the ordering would not change. main_goal (Relax-only: Feel
-        // less anxious / Manage daily stress / Be more present / Sleep more easily / Just
-        // explore) has no catalogue correlate that is not either collinear with the mode
-        // filter or already covered by relax_causes. Fetching either would be dead data.
+        // main_goal is intentionally not selected because it has no defensible catalogue correlate.
         supabaseAdmin
             .from("user_onboarding")
             .select("mode, mode_breakers, mode_areas, target_minutes, relax_causes, calming_moments")

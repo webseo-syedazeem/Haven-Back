@@ -318,7 +318,6 @@ export const ImportGuestData = async (req: Request, res: Response) => {
     // identically to the public.user_onboarding columns they land in, so a guest
     // who completed onboarding locally in ANY mode is imported in full:
     //
-    //   all modes   mode, user_goals
     //   focus/sleep mode_breakers[], mode_areas[], target_minutes
     //   relax       main_goal, relax_causes[], calming_moments
     //
@@ -326,7 +325,6 @@ export const ImportGuestData = async (req: Request, res: Response) => {
     // body and is left at its DB default ('{}' / null) — never cross-populated.
     type OnboardingUpdates = {
         mode?: string
-        user_goals?: string | null
         mode_breakers?: string[]
         mode_areas?: string[]
         target_minutes?: number | null
@@ -336,7 +334,7 @@ export const ImportGuestData = async (req: Request, res: Response) => {
     }
     let onboardingUpdates: OnboardingUpdates | null = null
 
-    const ONBOARDING_TEXT_FIELDS = ["user_goals", "main_goal", "calming_moments"] as const
+    const ONBOARDING_TEXT_FIELDS = ["main_goal", "calming_moments"] as const
     const ONBOARDING_ARRAY_FIELDS = ["mode_breakers", "mode_areas", "relax_causes"] as const
     const ONBOARDING_FIELDS = [
         "mode",
@@ -586,7 +584,7 @@ export const ImportGuestData = async (req: Request, res: Response) => {
             } else {
                 // Same RPC POST /api/onboarding uses (Controller/Onboarding.ts), rather than
                 // a second hand-maintained upsert — that drift is exactly how fields got
-                // silently dropped here before. All 8 data columns are forwarded, so
+                // silently dropped here before. All 7 data columns are forwarded, so
                 // nothing a guest answered is lost regardless of which mode they were in.
                 // The "only if no row exists yet" guard above is this endpoint's own, since
                 // the RPC itself always upserts; p_preference_updates is deliberately '{}'
@@ -597,7 +595,6 @@ export const ImportGuestData = async (req: Request, res: Response) => {
                     {
                         p_user_id: userId,
                         p_mode: onboardingUpdates.mode ?? null,
-                        p_user_goals: onboardingUpdates.user_goals ?? null,
                         p_mode_breakers: onboardingUpdates.mode_breakers || [],
                         p_mode_areas: onboardingUpdates.mode_areas || [],
                         p_target_minutes: onboardingUpdates.target_minutes ?? null,

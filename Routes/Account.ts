@@ -81,10 +81,6 @@ AccountRoutes.get("/account/export", AuthMiddleware, ExportAccountData)
  *                 type: string
  *                 enum: [sleep, relax, focus]
  *                 description: 'ALL MODES: same field as POST /api/onboarding''s mode.'
- *               user_goals:
- *                 type: string
- *                 nullable: true
- *                 description: 'ALL MODES: "Choose a goal" single value.'
  *               mode_breakers:
  *                 type: array
  *                 items:
@@ -119,7 +115,6 @@ AccountRoutes.get("/account/export", AuthMiddleware, ExportAccountData)
  *               value:
  *                 favourites: [5688323a-2fd9-4a73-af65-29c211dc76e8]
  *                 mode: focus
- *                 user_goals: Focus deeply
  *                 mode_breakers: [Background noise]
  *                 mode_areas: [At a desk]
  *                 target_minutes: 45
@@ -128,7 +123,6 @@ AccountRoutes.get("/account/export", AuthMiddleware, ExportAccountData)
  *               value:
  *                 favourites: [5688323a-2fd9-4a73-af65-29c211dc76e8]
  *                 mode: relax
- *                 user_goals: Feel calmer
  *                 main_goal: Manage daily stress
  *                 relax_causes: [Work, Overthinking]
  *                 calming_moments: In the evenings
@@ -137,7 +131,7 @@ AccountRoutes.get("/account/export", AuthMiddleware, ExportAccountData)
  *         description: >
  *           Import summary returned successfully. Onboarding is applied only if the
  *           account has no user_onboarding row yet; otherwise onboarding_note explains
- *           it was left alone. When applied, all 8 fields sent are written and
+ *           it was left alone. When applied, all 7 fields sent are written and
  *           users.onboarding_completed flips to true.
  *         content:
  *           application/json:

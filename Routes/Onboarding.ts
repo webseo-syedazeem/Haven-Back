@@ -14,10 +14,10 @@ const OnboardingRoutes = express.Router()
  *     OnboardingAnswers:
  *       type: object
  *       description: >
- *         The 8 fields of public.user_onboarding. `mode` is the only required one.
+ *         The 7 fields of public.user_onboarding. `mode` is the only required one.
  *         Each mode sends only its own family and omits the rest, which stay at their
  *         DB defaults ('{}' for the arrays, null for the others):
- *         ALL MODES mode, user_goals. FOCUS/SLEEP mode_breakers, mode_areas,
+ *         ALL MODES mode. FOCUS/SLEEP mode_breakers, mode_areas,
  *         target_minutes. RELAX main_goal, relax_causes, calming_moments.
  *         See API_CONTRACT_ONBOARDING_GOALS.md for the full per-mode option lists.
  *       required:
@@ -27,13 +27,6 @@ const OnboardingRoutes = express.Router()
  *           type: string
  *           enum: [sleep, relax, focus]
  *           description: 'ALL MODES: "What would you like help with?". The only required field.'
- *         user_goals:
- *           type: string
- *           nullable: true
- *           description: >
- *             ALL MODES: "Choose a goal" — a single value. Same screen shape in every
- *             flow, with mode-specific options (Focus deeply / Feel calmer / Sleep
- *             easier / Work easier / ...).
  *         mode_breakers:
  *           type: array
  *           items:
@@ -81,7 +74,7 @@ const OnboardingRoutes = express.Router()
  *     OnboardingRow:
  *       type: object
  *       description: >
- *         A stored public.user_onboarding row — the same 8 data fields as
+ *         A stored public.user_onboarding row — the same 7 data fields as
  *         OnboardingAnswers, plus bookkeeping. Request and response use identical names.
  *       properties:
  *         user_id:
@@ -90,9 +83,6 @@ const OnboardingRoutes = express.Router()
  *         mode:
  *           type: string
  *           enum: [sleep, relax, focus]
- *           nullable: true
- *         user_goals:
- *           type: string
  *           nullable: true
  *         mode_breakers:
  *           type: array
@@ -135,11 +125,11 @@ const OnboardingRoutes = express.Router()
  *       - Onboarding
  *     summary: Save the user's onboarding answers for their chosen mode
  *     description: >
- *       Accepts the 8 fields of public.user_onboarding; only `mode` is required.
+ *       Accepts the 7 fields of public.user_onboarding; only `mode` is required.
  *       Send just the fields that belong to the mode the user is in — omitted fields
  *       stay at their DB defaults and are NOT validated for absence, so no request is
  *       rejected for "wrong mode" fields. Every submission is a FULL OVERWRITE of all
- *       8 columns, so a resubmit must resend everything relevant. Also sets
+ *       7 columns, so a resubmit must resend everything relevant. Also sets
  *       users.onboarding_completed = true.
  *       Sound-catalogue preferences (preferred sounds/animals/instruments/environments,
  *       excluded sounds, detail level) are NOT part of onboarding and are not accepted
@@ -158,7 +148,6 @@ const OnboardingRoutes = express.Router()
  *               summary: Focus submission (mode_breakers / mode_areas / target_minutes)
  *               value:
  *                 mode: focus
- *                 user_goals: Focus deeply
  *                 mode_breakers: [Background noise, Phone distractions]
  *                 mode_areas: [At a desk, Studying]
  *                 target_minutes: 45
@@ -166,7 +155,6 @@ const OnboardingRoutes = express.Router()
  *               summary: Sleep submission (same three Focus/Sleep fields)
  *               value:
  *                 mode: sleep
- *                 user_goals: Sleep easier
  *                 mode_breakers: [Racing thoughts, Outside noise]
  *                 mode_areas: [Falling asleep]
  *                 target_minutes: 90
@@ -174,7 +162,6 @@ const OnboardingRoutes = express.Router()
  *               summary: Relax submission (main_goal / relax_causes / calming_moments)
  *               value:
  *                 mode: relax
- *                 user_goals: Feel calmer
  *                 main_goal: Manage daily stress
  *                 relax_causes: [Work, Overthinking]
  *                 calming_moments: In the evenings
@@ -216,7 +203,7 @@ OnboardingRoutes.post("/onboarding", AuthMiddleware, PostOnboarding)
  *     summary: Switch the authenticated user's mode without resubmitting the rest of onboarding
  *     description: >
  *       Requires the user to have already completed onboarding via POST /api/onboarding.
- *       Updates only `mode`; the other 7 answers are left exactly as stored, including
+ *       Updates only `mode`; the other 6 answers are left exactly as stored, including
  *       the previous mode's family — use POST /api/onboarding to replace those.
  *       Invalidates the user's recommendations, home-recommended, and continue-listening
  *       caches.
@@ -267,7 +254,7 @@ OnboardingRoutes.patch("/onboarding", AuthMiddleware, PatchOnboarding)
  *       - Onboarding
  *     summary: Get the authenticated user's saved onboarding answers
  *     description: >
- *       Returns the stored row with the same field names POST accepts — all 8 data
+ *       Returns the stored row with the same field names POST accepts — all 7 data
  *       fields plus bookkeeping. Fields the user's mode does not collect read back as
  *       '[]' (mode_breakers, mode_areas, relax_causes) or null (the rest).
  *     security:

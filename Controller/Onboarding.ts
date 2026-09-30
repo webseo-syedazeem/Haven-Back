@@ -108,12 +108,11 @@ const getAppUserId = async (req: Request, res: Response): Promise<string | numbe
 /**
  * POST /api/onboarding
  *
- * Accepts the 8 fields of public.user_onboarding. `mode` is the only required
+ * Accepts the 7 fields of public.user_onboarding. `mode` is the only required
  * one — it is the only column with a CHECK constraint and the only answer every
- * flow collects. The other 7 are optional in the API precisely because each mode
+ * flow collects. The other 6 are optional in the API precisely because each mode
  * only sends its own family:
  *
- *   all modes   mode, user_goals
  *   focus/sleep mode_breakers[], mode_areas[], target_minutes
  *   relax       main_goal, relax_causes[], calming_moments
  *
@@ -121,7 +120,7 @@ const getAppUserId = async (req: Request, res: Response): Promise<string | numbe
  * mode. Which screens a mode shows is the frontend's business; this endpoint
  * persists whatever it is given and leaves everything omitted at its DB default
  * ('{}' for the text[] columns, null for the rest). Each submission is a full
- * overwrite of all 8 columns, unchanged from previous behaviour.
+ * overwrite of all 7 columns, unchanged from previous behaviour.
  *
  * Sound-catalogue preferences (preferred sounds/animals/instruments/
  * environments, excluded sounds, detail level) are NOT part of onboarding —
@@ -135,12 +134,6 @@ export const PostOnboarding = async (req: Request, res: Response) => {
     // "What would you like help with?" — the one required field.
     if (!isOnboardingMode(body.mode)) {
         return res.status(400).json({ success: false, error: "mode must be one of sleep, relax, or focus" })
-    }
-
-    // "Choose a goal" — shared by all three modes, mode-specific option lists.
-    const userGoals = validateNullableText(body, "user_goals")
-    if (userGoals.error) {
-        return res.status(400).json({ success: false, error: userGoals.error })
     }
 
     // Focus/Sleep: "What breaks your {mode}?"
@@ -191,7 +184,6 @@ export const PostOnboarding = async (req: Request, res: Response) => {
             {
                 p_user_id: userId,
                 p_mode: body.mode,
-                p_user_goals: userGoals.value,
                 p_mode_breakers: modeBreakers.value,
                 p_mode_areas: modeAreas.value,
                 p_target_minutes: targetMinutes.value,

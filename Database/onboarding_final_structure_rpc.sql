@@ -1,56 +1,14 @@
--- ============================================================================
--- public.save_user_onboarding_completion — FINAL structure
--- ============================================================================
--- Rewires the onboarding RPC onto the FINAL, confirmed-live shape of
--- public.user_onboarding. This file supersedes and replaces every earlier
--- onboarding migration in this repo (all of them were deleted in the same
--- commit, because each carried a different, now-wrong column vocabulary):
---   onboarding_schema.sql
---   onboarding_completed_flag.sql
---   fix_onboarding_completion_case_type.sql
---   onboarding_rename_columns_drop_recreate.sql
+-- Removes the preview-only onboarding field from the live contract and table.
 --
--- ⚠️ NO DDL IS PERFORMED ON public.user_onboarding BY THIS FILE.
--- The table already exists in its final form. Confirmed live, column for
--- column, via Supabase's REST OpenAPI metadata
--- (GET {SUPABASE_URL}/rest/v1/ -> definitions.user_onboarding) before this
--- file was written:
+-- Live Supabase REST OpenAPI metadata was inspected before this migration was
+-- written. It confirmed public.user_onboarding still has the column and the
+-- exposed RPC still has the matching parameter. The checked-in current function
+-- body below is preserved except for removing that parameter and column.
 --
---   user_id          bigint       not null, PK, FK -> public.users(id) on delete cascade
---   mode_breakers    text[]       not null default '{}'
---   mode             text         null, CHECK (mode is null or mode in ('sleep','relax','focus'))
---   completed        boolean      not null default false
---   completed_at     timestamptz  null
---   updated_at       timestamptz  not null default now(), maintained by
---                                 trigger set_updated_at_on_user_onboarding
---   calming_moments  text         null
---   user_goals       text         null
---   mode_areas       text[]       not null default '{}'
---   target_minutes   integer      null
---   main_goal        text         null
---   relax_causes     text[]       not null default '{}'
---
--- public.users.onboarding_completed (boolean not null default false) also
--- already exists and is likewise NOT altered here — only written to, below.
---
--- ---------------------------------------------------------------------------
--- PER-MODE FIELD OWNERSHIP (enforced by the frontend and by what the
--- controllers forward, not by a DB constraint — the RPC persists exactly what
--- it is given):
---   all modes   : mode, user_goals
---   focus/sleep : mode_breakers[], mode_areas[], target_minutes
---   relax       : main_goal, relax_causes[], calming_moments
--- A mode never populates the other family's fields; they stay at '{}' / null.
--- ---------------------------------------------------------------------------
---
--- SAFE TO RUN ON THE LIVE DATABASE BEFORE DEPLOYING CODE:
---   * touches exactly one function, no tables
---   * idempotent — re-running it produces the same single function
---
--- The old function's parameter list is NOT a prefix of the new one, so
--- `create or replace` alone would leave the previous signature in place as an
--- overload and make PostgREST's /rpc/save_user_onboarding_completion
--- ambiguous. Every overload is therefore dropped first.
+-- IMPORTANT: run this transaction in Supabase before deploying the backend
+-- callers that omit the old RPC parameter, then deploy the backend immediately.
+-- The overload cleanup is required because PostgreSQL cannot change a function's
+-- input signature with CREATE OR REPLACE.
 
 begin;
 
@@ -75,7 +33,6 @@ $migrate$;
 create function public.save_user_onboarding_completion(
     p_user_id bigint,
     p_mode text,
-    p_user_goals text default null,
     p_mode_breakers text[] default '{}'::text[],
     p_mode_areas text[] default '{}'::text[],
     p_target_minutes integer default null,
@@ -98,14 +55,13 @@ declare
     v_preference_updates jsonb := coalesce(p_preference_updates, '{}'::jsonb);
     v_has_preference_updates boolean := coalesce(p_preference_updates, '{}'::jsonb) <> '{}'::jsonb;
 begin
-    -- Full overwrite of every onboarding answer on each submission, matching the
+    -- Full overwrite of every collected onboarding answer on each submission, matching the
     -- behaviour of every previous version of this function. The three text[]
     -- columns are NOT NULL, so a null argument is normalised to '{}' rather than
     -- being allowed to violate the constraint.
     insert into public.user_onboarding (
         user_id,
         mode,
-        user_goals,
         mode_breakers,
         mode_areas,
         target_minutes,
@@ -119,7 +75,6 @@ begin
     values (
         p_user_id,
         p_mode,
-        p_user_goals,
         coalesce(p_mode_breakers, '{}'::text[]),
         coalesce(p_mode_areas, '{}'::text[]),
         p_target_minutes,
@@ -133,7 +88,6 @@ begin
     on conflict (user_id)
     do update set
         mode = excluded.mode,
-        user_goals = excluded.user_goals,
         mode_breakers = excluded.mode_breakers,
         mode_areas = excluded.mode_areas,
         target_minutes = excluded.target_minutes,
@@ -241,9 +195,9 @@ begin
     end if;
     -- == end unchanged block ==============================================
 
-    -- `onboarding` is to_jsonb of the whole row, so it carries all 8 data
-    -- columns (mode, user_goals, mode_breakers, mode_areas, target_minutes,
-    -- main_goal, relax_causes, calming_moments) plus the bookkeeping ones.
+    -- `onboarding` is to_jsonb of the whole row, so it carries all 7 data
+    -- columns (mode, mode_breakers, mode_areas, target_minutes, main_goal,
+    -- relax_causes, calming_moments) plus the bookkeeping ones.
     return jsonb_build_object(
         'onboarding', to_jsonb(v_onboarding),
         'preferences', coalesce(
@@ -264,6 +218,9 @@ begin
     );
 end;
 $fn$;
+
+-- The function no longer depends on the removed field, so the destructive DDL is safe here.
+alter table public.user_onboarding drop column if exists user_goals;
 
 commit;
 

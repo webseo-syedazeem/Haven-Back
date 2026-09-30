@@ -25,8 +25,8 @@ const RecommendationsRoutes = express.Router()
  *       Focus/Sleep; relax_causes and calming_moments for Relax) and from
  *       user_sound_preferences (preferred sounds/animals/instruments, detail_preference,
  *       intensity_preference, typical_duration as a duration fallback).
- *       excluded_sounds is always a hard exclusion. user_goals and main_goal are stored
- *       but deliberately NOT used in ranking — see API_CONTRACT_ONBOARDING_GOALS.md.
+ *       excluded_sounds is always a hard exclusion. main_goal is stored but deliberately
+ *       not used in ranking.
  *       Guests and signed-in users with no stored mode fall back to the prior generic
  *       behaviour: mixed-mode, most-played/popular for users with no preferences at all.
  *     security:

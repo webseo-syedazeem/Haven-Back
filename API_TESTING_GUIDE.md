@@ -333,7 +333,6 @@ and `POST /api/admin/soundscapes` already validate for and expect (`Controller/A
 ```json
 {
   "mode": "focus",
-  "user_goals": "Focus deeply",
   "mode_breakers": ["Background noise", "Phone distractions"],
   "mode_areas": ["At a desk", "Studying"],
   "target_minutes": 45
@@ -343,14 +342,12 @@ and `POST /api/admin/soundscapes` already validate for and expect (`Controller/A
 ```json
 {
   "mode": "relax",
-  "user_goals": "Feel calmer",
   "main_goal": "Manage daily stress",
   "relax_causes": ["Work", "Overthinking"],
   "calming_moments": "In the evenings"
 }
 ```
 (`mode` is the only required field. Send only the fields your mode uses — omitted ones stay at `[]`/`null`. `target_minutes` is plain integer minutes, never `"45 min"`. See API_CONTRACT_ONBOARDING_GOALS.md for the per-mode option lists.)
-- **Success response (200):** `{ "success": true, "data": { "onboarding": { "user_id": 1, "mode": "relax", "user_goals": "Feel calmer", "mode_breakers": [], "mode_areas": [], "target_minutes": null, "main_goal": "Manage daily stress", "relax_causes": ["Work","Overthinking"], "calming_moments": "In the evenings", "completed": true, "completed_at": "..." }, "preferences": { "...": "existing user_sound_preferences row, unchanged" } } }`
 - **Errors:** `400` invalid/missing `mode`, malformed array, non-integer `target_minutes`; `401` no token; `500` server error.
 - **Verify:** confirm the other mode family reads back as `[]`/`null`, and that `users.onboarding_completed` flipped to `true`. This endpoint does **not** write to `user_sound_preferences` — use `PUT /api/preferences/sound` for Sound Preferences / Sounds to Avoid.
 
@@ -686,7 +683,6 @@ and `POST /api/admin/soundscapes` already validate for and expect (`Controller/A
   "playlists": [ { "name": "Guest Mix", "soundscape_ids": ["8301b75f-867a-43b3-88bf-ab066a20d5f5"] } ],
   "sound_preferences": { "excluded_sounds": ["gulls"] },
   "mode": "relax",
-  "user_goals": "Feel calmer",
   "main_goal": "Manage daily stress",
   "relax_causes": ["Work", "Overthinking"],
   "calming_moments": "In the evenings"

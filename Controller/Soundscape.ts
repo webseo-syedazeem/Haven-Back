@@ -765,8 +765,8 @@ const EXPLORE_GROUPS_ORDER = [
     "editorial",
 ] as const
 
-// Only ships the grouping structure — curated collection content is populated
-// later alongside real soundscape data (see WP-6 scope note).
+// Published collections are discoverable even before editors classify them:
+// unclassified rows fall back to Editorial. Only live-member metadata is exposed.
 export const GetExploreGroups = async (_req: Request, res: Response) => {
     try {
         const data = await remember("explore:groups", CacheTTL.CONTENT, async () => {
@@ -774,7 +774,6 @@ export const GetExploreGroups = async (_req: Request, res: Response) => {
                 .from("collections")
                 .select("*")
                 .eq("is_published", true)
-                .not("explore_group", "is", null)
                 .order("sort_order", { ascending: true })
                 .order("title", { ascending: true })
 
@@ -783,13 +782,87 @@ export const GetExploreGroups = async (_req: Request, res: Response) => {
                 throw new CacheReadError(500, "Failed to get explore groups")
             }
 
+            const collectionRows = collections || []
+            if (collectionRows.length === 0) {
+                return { groups: [] }
+            }
+
+            const collectionIds = collectionRows.map((collection) => String(collection.id))
+            const { data: memberships, error: membershipsError } = await supabaseAdmin
+                .from("collection_soundscapes")
+                .select("collection_id, soundscape_id")
+                .in("collection_id", collectionIds)
+
+            if (membershipsError) {
+                console.error("Get explore memberships error:", membershipsError)
+                throw new CacheReadError(500, "Failed to get explore groups")
+            }
+
+            const membershipRows = memberships || []
+            const soundscapeIds = [
+                ...new Set(membershipRows.map((membership) => String(membership.soundscape_id))),
+            ]
+            const liveModeBySoundscapeId = new Map<string, SoundscapeMode>()
+
+            if (soundscapeIds.length > 0) {
+                const { data: liveSoundscapes, error: soundscapesError } = await supabaseAdmin
+                    .from("soundscapes")
+                    .select("id, mode")
+                    .eq("status", "live")
+                    .in("id", soundscapeIds)
+
+                if (soundscapesError) {
+                    console.error("Get explore soundscapes error:", soundscapesError)
+                    throw new CacheReadError(500, "Failed to get explore groups")
+                }
+
+                for (const soundscape of liveSoundscapes || []) {
+                    if (isSoundscapeMode(soundscape.mode)) {
+                        liveModeBySoundscapeId.set(String(soundscape.id), soundscape.mode)
+                    }
+                }
+            }
+
+            const liveMemberIdsByCollection = new Map<string, Set<string>>()
+            const liveModesByCollection = new Map<string, Set<SoundscapeMode>>()
+
+            for (const membership of membershipRows) {
+                const soundscapeId = String(membership.soundscape_id)
+                const mode = liveModeBySoundscapeId.get(soundscapeId)
+                if (!mode) continue
+
+                const collectionId = String(membership.collection_id)
+                const memberIds = liveMemberIdsByCollection.get(collectionId) || new Set<string>()
+                const modes = liveModesByCollection.get(collectionId) || new Set<SoundscapeMode>()
+                memberIds.add(soundscapeId)
+                modes.add(mode)
+                liveMemberIdsByCollection.set(collectionId, memberIds)
+                liveModesByCollection.set(collectionId, modes)
+            }
+
             const grouped = new Map<string, Record<string, unknown>[]>()
-            for (const collection of collections || []) {
-                const group = String((collection as Record<string, unknown>).explore_group)
+            for (const collection of collectionRows) {
+                const collectionId = String(collection.id)
+                const liveMemberIds = liveMemberIdsByCollection.get(collectionId)
+                if (!liveMemberIds?.size) continue
+
+                const requestedGroup = String(
+                    (collection as Record<string, unknown>).explore_group || ""
+                )
+                const group = EXPLORE_GROUPS_ORDER.includes(
+                    requestedGroup as (typeof EXPLORE_GROUPS_ORDER)[number]
+                )
+                    ? requestedGroup
+                    : "editorial"
+
                 if (!grouped.has(group)) {
                     grouped.set(group, [])
                 }
-                grouped.get(group)!.push(collection)
+                grouped.get(group)!.push({
+                    ...collection,
+                    soundscape_count: liveMemberIds.size,
+                    soundscape_modes: [...(liveModesByCollection.get(collectionId) || [])],
+                })
             }
 
             const groups = EXPLORE_GROUPS_ORDER

@@ -372,10 +372,10 @@ SoundscapeRoutes.get("/collections/:id", GetOneCollection)
  *   get:
  *     tags:
  *       - Collections
- *     summary: Get published collections grouped by Explore grouping (nature/indoor/travel/animals/instruments/weather/situation/editorial)
+ *     summary: Get published collections with live members, grouped for Explore
  *     description: >
- *       Only ships the grouping structure. Curated collection content is populated
- *       later alongside real soundscape data.
+ *       Collections without an explore_group fall back to editorial. Collections
+ *       with no live member soundscapes are omitted.
  *     responses:
  *       '200':
  *         description: Explore groups returned successfully

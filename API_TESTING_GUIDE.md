@@ -264,9 +264,9 @@ and `POST /api/admin/soundscapes` already validate for and expect (`Controller/A
 
 #### `GET /api/explore`
 - **Auth:** none. **Body:** none.
-- **Success response (200):** `{ "success": true, "data": { "groups": [ { "group": "nature", "collections": [ /* published collections with this explore_group */ ] } ] } }` (only groups from `nature, indoor, travel, animals, instruments, weather, situation, editorial` that have ≥1 published collection appear).
+- **Success response (200):** `{ "success": true, "data": { "groups": [ { "group": "nature", "collections": [ /* published collections with live members */ ] } ] } }`. Each collection includes live-only `soundscape_count` and `soundscape_modes` metadata. Unclassified collections fall back to `editorial`.
 - **Errors:** `500` server error.
-- **Verify:** unaffected by the array-string issue (only reads `collections.explore_group`); empty until a published collection has `explore_group` set.
+- **Verify:** collections with no live members are excluded; non-live members neither count nor contribute a mode; a null `explore_group` does not make an otherwise valid collection disappear.
 
 ---
 

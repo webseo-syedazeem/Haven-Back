@@ -22,11 +22,37 @@ import {
     UpdateAdminSoundscapeStatus,
     UpsertAdminRemoteConfig,
 } from "../Controller/Admin.ts"
+import { AdminImageUploadMiddleware, UploadAdminImage } from "../Controller/AdminImageUpload.ts"
 import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
 import { AdminAuthMiddleware } from "../Middleware/AdminAuthMiddleware.ts"
 
 const AdminRoutes = express.Router()
 const requireAdmin = [AuthMiddleware, AdminAuthMiddleware] as const
+
+/**
+ * @swagger
+ * /api/admin/upload-image:
+ *   post:
+ *     tags: [Admin]
+ *     summary: Upload a collection cover image
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [image]
+ *             properties:
+ *               image: { type: string, format: binary }
+ *     responses:
+ *       '201': { description: Image uploaded and public URL returned }
+ *       '400': { description: Missing, unsupported, or oversized image }
+ *       '401': { description: Invalid or missing session }
+ *       '403': { description: Admin access required }
+ */
+AdminRoutes.post("/admin/upload-image", ...requireAdmin, AdminImageUploadMiddleware, UploadAdminImage)
 
 /**
  * @swagger

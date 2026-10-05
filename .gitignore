@@ -4,4 +4,17 @@ package-lock.json
 dist/
 .env.live
 300 sound scapes/
-public/
+
+# Track the admin panel, legal documents, cover artwork, and other static assets.
+!public/
+!public/**
+
+# Audio is deployed separately because these files are too large for Git.
+public/soundscapes/
+public/previews/
+
+# Safety net: never track audio files placed elsewhere under public/.
+public/**/*.mp3
+public/**/*.m4a
+public/**/*.wav
+public/**/*.ogg

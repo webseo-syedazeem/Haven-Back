@@ -1,23 +1,23 @@
-# Privacy Policy for Halcyon
+# Privacy Policy for Passage
 
 **Effective Date:** 5 September 2026
 **Last Updated:** 5 September 2026
 
 ## 1. Introduction
 
-This Privacy Policy explains how **HAPPY CHEEKS LTD** (company number 15146182), trading through the **Halcyon** mobile application ("Halcyon", "we", "us", or "our"), collects, uses, stores, and protects your information when you use the Halcyon mobile application and related services (collectively, the "App").
+This Privacy Policy explains how **HAPPY CHEEKS LTD** (company number 15146182), trading through the **Passage** mobile application ("Passage", "we", "us", or "our"), collects, uses, stores, and protects your information when you use the Passage mobile application and related services (collectively, the "App").
 
-Halcyon is a soundscape app for sleep, relaxation and focus. It offers a catalogue of soundscapes, playlists, downloads for offline listening, a sleep timer, and preferences that shape what is recommended to you.
+Passage is a soundscape app for sleep, relaxation and focus. It offers a catalogue of soundscapes, playlists, downloads for offline listening, a sleep timer, and preferences that shape what is recommended to you.
 
-**Halcyon is free to use.** There is no subscription, no in-app purchase, no trial period and no premium tier. We never ask you for payment details, we do not use a payment processor, and we hold no billing or payment information of any kind.
+**Passage is free to use.** There is no subscription, no in-app purchase, no trial period and no premium tier. We never ask you for payment details, we do not use a payment processor, and we hold no billing or payment information of any kind.
 
-**Halcyon supports rest, relaxation and focus. It does not diagnose, treat, cure, or prevent any medical condition, and it is not a medical device.** If you feel unsafe or are in crisis, please contact your local emergency services or a crisis support line.
+**Passage supports rest, relaxation and focus. It does not diagnose, treat, cure, or prevent any medical condition, and it is not a medical device.** If you feel unsafe or are in crisis, please contact your local emergency services or a crisis support line.
 
 By using the App, you agree to the practices described in this Privacy Policy. If you do not agree, please do not use the App.
 
 ## 2. Scope
 
-This policy applies to all users of the Halcyon App and to the information we collect through the App and its backend API. It does not apply to third-party services or platforms you connect to Halcyon (such as your Google account), which are governed by their own privacy policies.
+This policy applies to all users of the Passage App and to the information we collect through the App and its backend API. It does not apply to third-party services or platforms you connect to Passage (such as your Google account), which are governed by their own privacy policies.
 
 ## 3. Information We Collect
 
@@ -49,9 +49,9 @@ When you contact support, report a problem with a soundscape, or request a sound
 
 ### 3.5 Usage analytics (optional, off by default)
 
-Halcyon does **not** collect usage analytics unless you switch them on. The setting is off by default and lives in the App under Privacy & Data.
+Passage does **not** collect usage analytics unless you switch them on. The setting is off by default and lives in the App under Privacy & Data.
 
-If you turn it on, we record anonymous product events — such as which features and soundscapes are used — to help us improve the catalogue and the App. Turning it off stops collection immediately, and our servers reject analytics events for accounts where the setting is off. We never record the content of your support messages, and we do not track you across other apps or websites. Halcyon uses no advertising or third-party tracking SDKs.
+If you turn it on, we record anonymous product events — such as which features and soundscapes are used — to help us improve the catalogue and the App. Turning it off stops collection immediately, and our servers reject analytics events for accounts where the setting is off. We never record the content of your support messages, and we do not track you across other apps or websites. Passage uses no advertising or third-party tracking SDKs.
 
 ### 3.6 Device and technical data
 
@@ -59,7 +59,7 @@ We process the limited technical information needed to run and troubleshoot the 
 
 ### 3.7 What we do not collect
 
-We do **not** collect health or fitness data, location data, contacts, advertising identifiers, or payment information, and Halcyon does not connect to any health data platform.
+We do **not** collect health or fitness data, location data, contacts, advertising identifiers, or payment information, and Passage does not connect to any health data platform.
 
 ## 4. How We Use Your Information
 
@@ -80,7 +80,7 @@ We do not use your information to diagnose, treat, or make medical claims, and w
 
 If you are located in the European Economic Area, the United Kingdom, or Switzerland, we rely on the following legal bases under the GDPR and UK GDPR:
 
-- **Performance of a contract** — to provide the App and its features to you. Halcyon is free, so this contract involves no payment.
+- **Performance of a contract** — to provide the App and its features to you. Passage is free, so this contract involves no payment.
 - **Consent** — for optional notifications and for optional usage analytics. You may withdraw either at any time in the App.
 - **Legitimate interests** — to maintain, secure and improve the App, where those interests are not overridden by your rights.
 - **Legal obligation** — where processing is required by law.
@@ -92,15 +92,15 @@ If you are located in the European Economic Area, the United Kingdom, or Switzer
 - **Service providers:** **Supabase**, which provides our authentication, database and file storage (including your profile picture), and our cloud backend infrastructure, both processing information on our behalf.
 - **Push delivery:** **Firebase Cloud Messaging** (Google), used to deliver push notifications — only if you have turned a notification on, and only for as long as it is on.
 - **Sign-in:** **Google**, if you choose to sign in with your Google account.
-- **Legal and safety reasons:** where required by law or legal process, or to protect the rights, safety and security of our users, the public, or Halcyon.
+- **Legal and safety reasons:** where required by law or legal process, or to protect the rights, safety and security of our users, the public, or Passage.
 - **Business transfers:** in connection with a merger, acquisition, financing, or sale of assets, where your information may transfer subject to this policy.
 - **With your consent:** in any other case, with your explicit permission.
 
-**There are no payment processors in this list, because Halcyon is free and processes no payments.**
+**There are no payment processors in this list, because Passage is free and processes no payments.**
 
 ## 7. Third-Party Services
 
-Halcyon relies on the following third-party services:
+Passage relies on the following third-party services:
 
 - **Supabase** — authentication, database, and file storage.
 - **Google** — sign-in (OAuth), if you use it.
@@ -108,7 +108,7 @@ Halcyon relies on the following third-party services:
 
 We encourage you to review the privacy policies of any third-party service you connect.
 
-> **Note on audio:** Halcyon's soundscapes are produced in advance and stored in our library, then streamed or downloaded to your device. Your personal information is never sent to any audio-generation service to create them.
+> **Note on audio:** Passage's soundscapes are produced in advance and stored in our library, then streamed or downloaded to your device. Your personal information is never sent to any audio-generation service to create them.
 
 ## 8. Data Storage and Security
 
@@ -147,7 +147,7 @@ To exercise any right not available directly in the App, contact us at **info@ha
 
 ## 11. Children's Privacy
 
-Halcyon is not directed to children under the age of **13**, and we do not knowingly collect personal information from them. If you believe a child has provided us with information, please contact us at **info@halcyonapp.io** and we will take steps to delete it.
+Passage is not directed to children under the age of **13**, and we do not knowingly collect personal information from them. If you believe a child has provided us with information, please contact us at **info@halcyonapp.io** and we will take steps to delete it.
 
 ## 12. International Data Transfers
 
@@ -165,7 +165,7 @@ If you are a California resident, you have the right to know what personal infor
 
 ## 14. Changes to This Policy
 
-We may update this Privacy Policy from time to time. When we make material changes, we will update the "Last Updated" date above and, where appropriate, notify you in the App. Your continued use of Halcyon after an update means you accept the revised policy.
+We may update this Privacy Policy from time to time. When we make material changes, we will update the "Last Updated" date above and, where appropriate, notify you in the App. Your continued use of Passage after an update means you accept the revised policy.
 
 ## 15. Contact Us
 
@@ -179,4 +179,4 @@ Address: **Apartment 37 Ellis Court, Textile Street, Dewsbury, England, WF13 2EX
 
 ---
 
-*Halcyon is a free soundscape app for sleep, relaxation and focus. It does not diagnose, treat, or prevent any medical condition. If you feel unsafe or in crisis, contact your local emergency services or a crisis support line.*
+*Passage is a free soundscape app for sleep, relaxation and focus. It does not diagnose, treat, or prevent any medical condition. If you feel unsafe or in crisis, contact your local emergency services or a crisis support line.*

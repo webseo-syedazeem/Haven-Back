@@ -6,6 +6,7 @@ import multer from "multer"
 import sharp from "sharp"
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
+const WEBP_QUALITY = 100
 const IMAGE_DIRECTORY_NAME = "passage_soundscape_images_webp"
 const IMAGE_DIRECTORY = path.join(process.cwd(), "public", IMAGE_DIRECTORY_NAME)
 const EXTENSIONS_BY_MIME_TYPE = new Map<string, ReadonlySet<string>>([
@@ -77,7 +78,7 @@ export const UploadAdminImage = async (req: Request, res: Response) => {
     try {
         webpBuffer = await sharp(req.file.buffer)
             .rotate()
-            .webp({ quality: 85 })
+            .webp({ quality: WEBP_QUALITY, smartSubsample: true })
             .toBuffer()
     } catch (error) {
         console.error("Admin image conversion error:", error)

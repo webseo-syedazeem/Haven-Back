@@ -6,7 +6,7 @@ import multer from "multer"
 import sharp from "sharp"
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
-const WEBP_QUALITY = 100
+const WEBP_QUALITY = 90
 const IMAGE_DIRECTORY_NAME = "passage_soundscape_images_webp"
 const IMAGE_DIRECTORY = path.join(process.cwd(), "public", IMAGE_DIRECTORY_NAME)
 const EXTENSIONS_BY_MIME_TYPE = new Map<string, ReadonlySet<string>>([
@@ -25,7 +25,7 @@ const safeBasename = (filename: string) => {
         .replace(/^-+|-+$/g, "")
         .slice(0, 80)
 
-    return slug || "collection-cover"
+    return slug || "passage-artwork"
 }
 
 const upload = multer({
@@ -65,28 +65,33 @@ export const AdminImageUploadMiddleware = (req: Request, res: Response, next: Ne
     })
 }
 
-export const UploadAdminImage = async (req: Request, res: Response) => {
+export const createAdminImageHandler = (directory = IMAGE_DIRECTORY) => async (req: Request, res: Response) => {
     if (!req.file) {
         return res.status(400).json({ success: false, error: "image file is required" })
     }
 
     const filename = `${safeBasename(req.file.originalname)}-${Date.now()}-${crypto.randomUUID()}.webp`
-    const outputPath = path.join(IMAGE_DIRECTORY, filename)
+    const outputPath = path.join(directory, filename)
     const publicPath = `/${IMAGE_DIRECTORY_NAME}/${encodeURIComponent(filename)}`
 
     let webpBuffer: Buffer
     try {
-        webpBuffer = await sharp(req.file.buffer)
+        const image = sharp(req.file.buffer, { limitInputPixels: 40_000_000 })
+        const metadata = await image.metadata()
+        const actualMime = metadata.format === "jpeg" ? "image/jpeg" : `image/${metadata.format}`
+        if (!EXTENSIONS_BY_MIME_TYPE.has(actualMime) || actualMime !== req.file.mimetype.toLowerCase()) {
+            return res.status(400).json({ success: false, error: "Image content does not match its declared format" })
+        }
+        webpBuffer = await image
             .rotate()
             .webp({ quality: WEBP_QUALITY, smartSubsample: true })
             .toBuffer()
-    } catch (error) {
-        console.error("Admin image conversion error:", error)
+    } catch {
         return res.status(400).json({ success: false, error: "Uploaded file could not be processed as an image" })
     }
 
     try {
-        await fs.promises.mkdir(IMAGE_DIRECTORY, { recursive: true })
+        await fs.promises.mkdir(directory, { recursive: true })
         await fs.promises.writeFile(outputPath, webpBuffer, { flag: "wx" })
     } catch (error) {
         console.error("Admin image save error:", error)
@@ -103,3 +108,5 @@ export const UploadAdminImage = async (req: Request, res: Response) => {
         },
     })
 }
+
+export const UploadAdminImage = createAdminImageHandler()

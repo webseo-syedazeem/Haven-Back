@@ -194,14 +194,15 @@ SoundscapeRoutes.get("/soundscapes/mode/:mode", GetSoundscapesByMode)
  *       - Soundscapes
  *     summary: Get a short flat list of live soundscapes for one mode (onboarding preview)
  *     description: >
- *       Guest-accessible - no auth. Returns the first `count` live soundscapes of the
- *       mode as a FLAT array (no subcategory grouping), in the same order
- *       GET /api/soundscapes/mode/{mode} ranks them (sort_score descending, then title).
+ *       Guest-accessible - no auth. Returns a rotating combination of `count` live
+ *       soundscapes as a FLAT array (no subcategory grouping). Concurrent requests use
+ *       atomic rotation slots, so the same group is not repeated until every possible
+ *       group has been served. Items within a group retain catalogue ranking order.
  *       If the mode has fewer than `count` live soundscapes, only those are returned -
  *       the list is never padded and a mode with none live returns an empty array.
  *       Each element is the same soundscape object the other soundscape endpoints return.
- *       Cached per mode and count; cleared whenever a soundscape is created, updated,
- *       published or changes status.
+ *       The eligible catalogue pool is cached per mode and cleared whenever a soundscape
+ *       is created, updated, published or changes status.
  *     parameters:
  *       - in: path
  *         name: mode
@@ -237,7 +238,7 @@ SoundscapeRoutes.get("/soundscapes/mode/:mode", GetSoundscapesByMode)
  *                       enum: [sleep, relax, focus]
  *                     soundscapes:
  *                       type: array
- *                       description: Flat list, at most `count` long, in ranked order.
+ *                       description: Rotating flat list, at most `count` long, in ranked order.
  *                       items:
  *                         $ref: '#/components/schemas/Soundscape'
  *       '400':

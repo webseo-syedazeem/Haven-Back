@@ -27,6 +27,7 @@ const GENERATION_KEY = "cache:read-generation"
 const SCAN_BATCH_SIZE = 200
 const pendingKeys = new Set<string>()
 const pendingPatterns = new Set<string>()
+const localSequences = new Map<string, bigint>()
 let recovery: Promise<boolean> | null = null
 let localGeneration = 0
 
@@ -153,6 +154,25 @@ export const getOrSetCache = remember
 
 // Retained for compatibility. A cache hit no longer starts a database refresh.
 export const getOrSetCacheWithRevalidate = remember
+
+// Redis INCR assigns one globally unique slot even when requests reach different
+// backend processes at the same time. The in-process counter keeps the endpoint
+// available during a Redis outage and still serializes concurrent calls handled
+// by this process.
+export const nextSequence = async (key: string): Promise<bigint> => {
+    try {
+        const redisValue = await command(() => redis.incr(key))
+        const sequence = BigInt(redisValue) - 1n
+        const localNext = localSequences.get(key) || 0n
+        if (sequence >= localNext) localSequences.set(key, sequence + 1n)
+        return sequence
+    } catch (error) {
+        warn(`sequence ${key} failed`, error)
+        const sequence = localSequences.get(key) || 0n
+        localSequences.set(key, sequence + 1n)
+        return sequence
+    }
+}
 
 const escapeGlob = (value: string) => value.replace(/[\\*?\[\]]/g, "\\$&")
 

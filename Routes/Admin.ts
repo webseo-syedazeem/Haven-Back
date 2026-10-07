@@ -1,4 +1,5 @@
 import express from "express"
+import { GetAdminSupport, GetOneAdminSupport, UpdateAdminSupportStatus } from "../Controller/AdminSupport.ts"
 import {
     AddAdminCollectionSoundscape,
     CreateAdminCollection,
@@ -29,12 +30,16 @@ import { AdminAuthMiddleware } from "../Middleware/AdminAuthMiddleware.ts"
 const AdminRoutes = express.Router()
 const requireAdmin = [AuthMiddleware, AdminAuthMiddleware] as const
 
+AdminRoutes.get("/admin/support", ...requireAdmin, GetAdminSupport)
+AdminRoutes.get("/admin/support/:id", ...requireAdmin, GetOneAdminSupport)
+AdminRoutes.put("/admin/support/:id/status", ...requireAdmin, UpdateAdminSupportStatus)
+
 /**
  * @swagger
  * /api/admin/upload-image:
  *   post:
  *     tags: [Admin]
- *     summary: Upload a collection cover image
+ *     summary: Upload collection cover or soundscape artwork as WebP
  *     security:
  *       - bearerAuth: []
  *     requestBody:

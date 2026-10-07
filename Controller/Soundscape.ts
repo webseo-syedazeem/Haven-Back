@@ -1,4 +1,5 @@
-import { remember, CacheTTL, CacheReadError, libraryCacheKey } from "../Utils/CacheHelper.ts"
+import { remember, CacheTTL, CacheReadError, libraryCacheKey, nextSequence } from "../Utils/CacheHelper.ts"
+import { selectPreviewCombination } from "../Utils/PreviewRotation.ts"
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 
@@ -328,8 +329,8 @@ export const GetAllSoundscapes = async (_req: Request, res: Response) => {
 
 // Live soundscapes for one mode in the catalogue's ranked order (sort_score desc, then
 // title). Shared by GetSoundscapesByMode (which groups the result by subcategory) and
-// GetSoundscapesModePreview (which takes the top N as a flat list), so both surfaces
-// always agree on what "the mode's soundscapes, in order" means. Throws CacheReadError
+// GetSoundscapesModePreview (which rotates combinations from the ranked pool), so both
+// surfaces always agree on what "the mode's soundscapes, in order" means. Throws CacheReadError
 // on a database failure so callers inside remember() never cache a partial result.
 const fetchRankedLiveSoundscapesByMode = async (mode: SoundscapeMode): Promise<SoundscapeRecord[]> => {
     const { data: soundscapes, error: soundscapesError } = await supabaseAdmin
@@ -381,6 +382,7 @@ export const GetSoundscapesByMode = async (req: Request, res: Response) => {
 
 const DEFAULT_PREVIEW_COUNT = 3
 const MAX_PREVIEW_COUNT = 10
+const previewPoolRequests = new Map<SoundscapeMode, Promise<SoundscapeRecord[]>>()
 
 const parsePreviewCount = (value: unknown): { count: number; error?: string } => {
     if (value === undefined) {
@@ -399,10 +401,25 @@ const parsePreviewCount = (value: unknown): { count: number; error?: string } =>
     return { count: parsed }
 }
 
-// Flat top-N list for the onboarding "preview" screen: the first `count` live soundscapes
-// of a mode, in exactly the order GetSoundscapesByMode ranks them, with no subcategory
-// grouping. Guest-accessible. A mode with fewer than `count` live soundscapes returns
-// however many exist (possibly none) - never an error, never padded.
+const getPreviewPool = (mode: SoundscapeMode): Promise<SoundscapeRecord[]> => {
+    const pending = previewPoolRequests.get(mode)
+    if (pending) return pending
+
+    const request = remember(
+        `soundscapes:mode:${mode}:preview:pool`,
+        CacheTTL.CONTENT,
+        () => fetchRankedLiveSoundscapesByMode(mode),
+    ).finally(() => {
+        if (previewPoolRequests.get(mode) === request) previewPoolRequests.delete(mode)
+    })
+
+    previewPoolRequests.set(mode, request)
+    return request
+}
+
+// Flat rotating list for the onboarding preview screen. The catalogue pool stays
+// cached, while each request receives its own atomic sequence slot and therefore
+// a different combination until all possible combinations have been served.
 export const GetSoundscapesModePreview = async (req: Request, res: Response) => {
     const mode = String(req.params.mode || "").trim().toLowerCase()
 
@@ -419,19 +436,18 @@ export const GetSoundscapesModePreview = async (req: Request, res: Response) => 
     }
 
     try {
-        const data = await remember(
-            `soundscapes:mode:${mode}:preview:${parsedCount.count}`,
-            CacheTTL.CONTENT,
-            async () => {
-                const ranked = await fetchRankedLiveSoundscapesByMode(mode)
-
-                return {
-                    mode,
-                    soundscapes: ranked.slice(0, parsedCount.count),
-                }
-            }
+        const pool = await getPreviewPool(mode)
+        const sequence = await nextSequence(
+            `rotation:soundscapes:mode:${mode}:preview:${parsedCount.count}`
         )
+        const data = {
+            mode,
+            soundscapes: selectPreviewCombination(pool, parsedCount.count, sequence),
+        }
 
+        // The pool is cached server-side, but each response is deliberately unique.
+        // Prevent browsers and intermediary proxies from freezing one rotation slot.
+        res.set("Cache-Control", "no-store, max-age=0")
         return res.status(200).json({ success: true, data })
     } catch (err) {
         if (err instanceof CacheReadError) {

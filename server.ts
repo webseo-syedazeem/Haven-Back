@@ -27,6 +27,7 @@ import RecommendationsRoutes from "./Routes/Recommendations.ts"
 import OnboardingRoutes from "./Routes/Onboarding.ts"
 import HelpRoutes from "./Routes/Help.ts"
 import { connectRedis } from "./Config/RedisConnection.ts"
+import { parseAudioByteRange } from "./Utils/AudioRange.ts"
 
 const app = express()
 app.set("trust proxy", 1)
@@ -36,8 +37,9 @@ const previewsPath = path.join(process.cwd(), "public", "previews")
 const privacyPolicyPath = path.join(process.cwd(), "public", "legal", "privacy-policy.md")
 const adminPanelPath = path.join(process.cwd(), "public", "admin", "index.html")
 
-// Spotify-Grade Performance: Optimized chunk size (128KB) for faster initial mobile buffering over cellular networks
-const AUDIO_CHUNK_SIZE = 128 * 1024 
+// Files are read in bounded pieces, but this is only the server-side I/O buffer.
+// It must never cap an open-ended HTTP Range response from a media player.
+const AUDIO_STREAM_BUFFER_SIZE = 128 * 1024
 const AUDIO_CONTENT_TYPES: Record<string, string> = {
     ".m4a": "audio/mp4", // AAC Standard
     ".mp3": "audio/mpeg",
@@ -314,24 +316,18 @@ const streamAudioFile = async (
                 ...commonHeaders,
                 "Content-Length": fileSize,
             })
-            const stream = fs.createReadStream(filePath, { highWaterMark: AUDIO_CHUNK_SIZE })
+            const stream = fs.createReadStream(filePath, { highWaterMark: AUDIO_STREAM_BUFFER_SIZE })
             stream.on("error", () => res.end())
             return stream.pipe(res)
         }
 
         // Case B: HTTP 206 Partial Content Range Requests (Seamless scrubbing/seeking)
-        const parts = range.replace(/bytes=/, "").split("-")
-        const startText = parts[0]
-        const endText = parts[1]
-
-        const start = startText ? parseInt(startText, 10) : Math.max(fileSize - parseInt(endText, 10), 0)
-        const requestedEnd = endText && startText ? parseInt(endText, 10) : start + AUDIO_CHUNK_SIZE - 1
-
-        if (isNaN(start) || start >= fileSize) {
+        const parsedRange = parseAudioByteRange(range, fileSize)
+        if (!parsedRange) {
             return res.status(416).set("Content-Range", `bytes */${fileSize}`).end()
         }
 
-        const end = Math.min(requestedEnd, fileSize - 1)
+        const { start, end } = parsedRange
         const contentLength = end - start + 1
 
         res.writeHead(206, {
@@ -341,10 +337,22 @@ const streamAudioFile = async (
         })
 
         // Pipe chunk safely and handle abrupt client closes (user skips or closes mobile app)
-        const stream = fs.createReadStream(filePath, { start, end, highWaterMark: AUDIO_CHUNK_SIZE })
+        const stream = fs.createReadStream(filePath, {
+            start,
+            end,
+            highWaterMark: AUDIO_STREAM_BUFFER_SIZE,
+        })
 
-        req.on("close", () => {
-            stream.destroy() // Closes stream immediately if user fast-forwards or skips track
+        // `request.close` also fires after a normally completed request on
+        // modern Node versions, while the response may still be streaming.
+        // Only an actually aborted request or prematurely closed response may
+        // cancel the file read.
+        const stopStream = () => {
+            if (!stream.destroyed) stream.destroy()
+        }
+        req.once("aborted", stopStream)
+        res.once("close", () => {
+            if (!res.writableEnded) stopStream()
         })
 
         stream.on("error", () => {

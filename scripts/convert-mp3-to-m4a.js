@@ -8,12 +8,10 @@ import ffmpegPath from 'ffmpeg-static';
 const execFileAsync = promisify(execFile);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = __dirname;
+const PROJECT_ROOT = path.resolve(__dirname, '..');
 const TARGET_DIRS = [
-  path.join(PROJECT_ROOT, 'public', 'soundscapes'),
-  path.join(PROJECT_ROOT, 'public', 'previews'),
+  path.join(PROJECT_ROOT, 'public', 'new_focus_soundscapes'),
 ];
-
 // Ambient/nature soundscapes sound great at 192k AAC — near-transparent quality,
 // much smaller than the original MP3s. Lower to '128k' if file size matters more.
 const AAC_BITRATE = process.argv.includes('--bitrate')

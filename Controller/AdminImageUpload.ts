@@ -4,6 +4,7 @@ import path from "path"
 import type { NextFunction, Request, Response } from "express"
 import multer from "multer"
 import sharp from "sharp"
+import { generateImageVariants } from "../lib/imageVariants.js"
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
 const WEBP_QUALITY = 90
@@ -65,14 +66,53 @@ export const AdminImageUploadMiddleware = (req: Request, res: Response, next: Ne
     })
 }
 
+const VARIANT_DIRS = ["sm", "md", "lg"] as const
+
+// Builds a candidate output filename. Combining a millisecond timestamp with an 8-char random
+// hash makes collisions between two uploads astronomically unlikely on its own, but we still
+// explicitly check for an existing file (see the retry loop below) before committing to a name.
+// This matters because sm/md/lg variants are served with `Cache-Control: immutable` for a full
+// year: if a re-upload ever reused an existing filename, devices that had already cached the
+// old image under that exact URL would keep showing the stale artwork for up to a year. Always
+// minting a brand-new filename (and therefore a brand-new URL) for any upload whose target name
+// is already taken on disk sidesteps that entirely — a changed image is a new URL, never a
+// cache-busted old one.
+const buildCandidateFilename = (originalName: string) =>
+    `${safeBasename(originalName)}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.webp`
+
+const anyVariantExists = (directory: string, filename: string) =>
+    VARIANT_DIRS.some((dir) => fs.existsSync(path.join(directory, dir, filename)))
+
+const pickAvailableFilename = (directory: string, originalName: string) => {
+    const MAX_ATTEMPTS = 5
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+        const candidate = buildCandidateFilename(originalName)
+        const candidatePath = path.join(directory, candidate)
+
+        if (!fs.existsSync(candidatePath) && !anyVariantExists(directory, candidate)) {
+            return candidate
+        }
+    }
+
+    throw new Error("Could not allocate a unique image filename")
+}
+
 export const createAdminImageHandler = (directory = IMAGE_DIRECTORY) => async (req: Request, res: Response) => {
     if (!req.file) {
         return res.status(400).json({ success: false, error: "image file is required" })
     }
 
-    const filename = `${safeBasename(req.file.originalname)}-${Date.now()}-${crypto.randomUUID()}.webp`
+    let filename: string
+    try {
+        filename = pickAvailableFilename(directory, req.file.originalname)
+    } catch {
+        return res.status(500).json({ success: false, error: "Failed to allocate a unique filename" })
+    }
     const outputPath = path.join(directory, filename)
     const publicPath = `/${IMAGE_DIRECTORY_NAME}/${encodeURIComponent(filename)}`
+    const variantPublicPath = (dir: (typeof VARIANT_DIRS)[number]) =>
+        `/${IMAGE_DIRECTORY_NAME}/${dir}/${encodeURIComponent(filename)}`
 
     let webpBuffer: Buffer
     try {
@@ -92,19 +132,34 @@ export const createAdminImageHandler = (directory = IMAGE_DIRECTORY) => async (r
 
     try {
         await fs.promises.mkdir(directory, { recursive: true })
+        // `wx` fails loudly instead of silently overwriting on a race; pickAvailableFilename
+        // already checked existence, so this should only ever trip on a concurrent request.
         await fs.promises.writeFile(outputPath, webpBuffer, { flag: "wx" })
     } catch (error) {
         console.error("Admin image save error:", error)
         return res.status(500).json({ success: false, error: "Failed to save uploaded image" })
     }
 
+    // Best-effort: the original is already saved and the response below stays valid even if
+    // this fails. Any image missing sm/md/lg variants can be backfilled later by running
+    // scripts/generate-image-variants.js against the public folder.
+    try {
+        await generateImageVariants(webpBuffer, directory, filename)
+    } catch (error) {
+        console.error("Admin image variant generation error:", error)
+    }
+
     const configuredServerUrl = process.env.SERVER_URL?.trim().replace(/\/+$/, "")
     const requestOrigin = `${req.protocol}://${req.get("host")}`
+    const origin = configuredServerUrl || requestOrigin
 
     return res.status(201).json({
         success: true,
         data: {
-            url: `${configuredServerUrl || requestOrigin}${publicPath}`,
+            url: `${origin}${publicPath}`,
+            sm_url: `${origin}${variantPublicPath("sm")}`,
+            md_url: `${origin}${variantPublicPath("md")}`,
+            lg_url: `${origin}${variantPublicPath("lg")}`,
         },
     })
 }

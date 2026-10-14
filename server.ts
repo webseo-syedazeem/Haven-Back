@@ -369,10 +369,32 @@ const streamAudioFile = async (
     }
 }
 
+// Resized cover-image variants (see lib/imageVariants.js + scripts/generate-image-variants.js).
+// Each variant file is uniquely named per-upload (see Controller/AdminImageUpload.ts), so a
+// changed image always gets a brand-new filename/URL instead of overwriting a cached one —
+// that's what makes a full year of immutable caching safe here. These three specific-path
+// mounts must stay registered BEFORE the generic originals mount below, since Express matches
+// static middleware in registration order and both would otherwise match the same URLs.
+const IMAGE_VARIANT_CACHE_CONTROL = {
+    maxAge: '365d',
+    immutable: true,
+}
+for (const variantDir of ['sm', 'md', 'lg']) {
+    app.use(
+        `/passage_soundscape_images_webp/${variantDir}`,
+        express.static(
+            path.join(process.cwd(), 'public', 'passage_soundscape_images_webp', variantDir),
+            IMAGE_VARIANT_CACHE_CONTROL
+        )
+    )
+}
+
+// Original, full-size cover images — unchanged 7-day cache (not immutable, since legacy
+// filenames predating the uniqueness scheme above could in principle be re-saved in place).
 app.use(
     '/passage_soundscape_images_webp',
     express.static(path.join(process.cwd(), 'public', 'passage_soundscape_images_webp'), {
-        maxAge: '7d',
+        maxAge: '365d',
         immutable: false,
     })
 )

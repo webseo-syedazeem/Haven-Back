@@ -513,6 +513,8 @@ async function main() {
     failed: 0,
   };
 
+  const processedNames = [];
+
   for (const track of tracks) {
 
     try {
@@ -521,6 +523,8 @@ async function main() {
       for (const key of Object.keys(result)) {
         summary[key] += Number(result[key]);
       }
+
+      processedNames.push(track.relativeStem);
 
     } catch (error) {
 
@@ -579,6 +583,15 @@ async function main() {
   console.log(
     '\nProduction public/preview was not modified.'
   );
+
+  if (processedNames.length > 0) {
+    console.log(
+      `\nProcessed soundscapes (${processedNames.length}):`
+    );
+    for (const name of processedNames) {
+      console.log(name);
+    }
+  }
 
   if (summary.failed > 0) {
     process.exitCode = 1;

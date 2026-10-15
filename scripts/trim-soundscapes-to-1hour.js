@@ -183,6 +183,20 @@ async function runFfmpeg(ffmpegArgs) {
   }
 }
 
+// Unlike runFfmpeg above (used for probing, where ffmpeg "failing" with no
+// output file is expected), this is for actual encode/trim/stretch
+// commands: if ffmpeg fails here, something is genuinely wrong (disk full,
+// bad input, permissions, etc) and the real reason must not be swallowed.
+async function runFfmpegStrict(ffmpegArgs) {
+  try {
+    return await execFileAsync(ffmpegPath, ffmpegArgs, {
+      maxBuffer: 10 * 1024 * 1024,
+    });
+  } catch (error) {
+    throw new Error((error.stderr || error.message || 'ffmpeg failed').trim());
+  }
+}
+
 async function probeDurationSeconds(filePath) {
   const { stderr } = await runFfmpeg(['-hide_banner', '-i', filePath]);
 
@@ -238,7 +252,7 @@ async function trimFile(filePath, durationSeconds) {
   const tempPath = `${filePath}.working-${process.pid}.m4a`;
 
   try {
-    await runFfmpeg([
+    await runFfmpegStrict([
       '-nostdin',
       '-hide_banner',
       '-loglevel', 'error',
@@ -258,7 +272,7 @@ async function trimFile(filePath, durationSeconds) {
     ]);
 
     if (!fs.existsSync(tempPath) || fs.statSync(tempPath).size <= 1024) {
-      throw new Error('Trimmed output missing or empty.');
+      throw new Error('Trimmed output missing or empty (ffmpeg reported success but wrote nothing - check disk space).');
     }
 
     const trimmedDuration = await probeDurationSeconds(tempPath);
@@ -314,7 +328,7 @@ async function stretchFile(filePath, durationSeconds) {
     const bitrateKbps = (await probeAudioBitrateKbps(filePath)) || 192;
     const atempoFactor = durationSeconds / MAX_SECONDS;
 
-    await runFfmpeg([
+    await runFfmpegStrict([
       '-nostdin',
       '-hide_banner',
       '-loglevel', 'error',
@@ -335,7 +349,7 @@ async function stretchFile(filePath, durationSeconds) {
     ]);
 
     if (!fs.existsSync(tempPath) || fs.statSync(tempPath).size <= 1024) {
-      throw new Error('Stretched output missing or empty.');
+      throw new Error('Stretched output missing or empty (ffmpeg reported success but wrote nothing - check disk space).');
     }
 
     const stretchedDuration = await probeDurationSeconds(tempPath);

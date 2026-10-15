@@ -210,11 +210,18 @@ async function probeAudioBitrateKbps(filePath) {
 function backupOriginal(filePath) {
   if (NO_BACKUP) return;
 
-  const relativePath = TARGET_DIRS
-    .map((dir) => (filePath.startsWith(dir) ? path.relative(dir, filePath) : null))
-    .find((rel) => rel !== null);
+  // Keep backups organized under a subfolder matching their source
+  // category (Sleep/Focus/Relax/...), not dumped flat into one folder.
+  const matchedDir = TARGET_DIRS.find(
+    (dir) => filePath === dir || filePath.startsWith(dir + path.sep)
+  );
 
-  const backupPath = path.join(BACKUP_DIR, relativePath || path.basename(filePath));
+  const categoryName = matchedDir ? path.basename(matchedDir) : '';
+  const relativePath = matchedDir
+    ? path.relative(matchedDir, filePath)
+    : path.basename(filePath);
+
+  const backupPath = path.join(BACKUP_DIR, categoryName, relativePath);
 
   fs.mkdirSync(path.dirname(backupPath), { recursive: true });
 

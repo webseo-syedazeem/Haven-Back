@@ -34,11 +34,6 @@ const PLAYBACK_SETTING_DEFAULTS = {
     autoplay_next: false,
 }
 
-const DOWNLOAD_SETTING_DEFAULTS = {
-    wifi_only: true,
-    quality: "standard",
-}
-
 const hasOwn = (value: Record<string, unknown>, key: string) =>
     Object.prototype.hasOwnProperty.call(value, key)
 
@@ -339,103 +334,6 @@ export const UpdatePlaybackPreferences = async (req: Request, res: Response) => 
     }
 }
 
-export const GetDownloadPreferences = async (req: Request, res: Response) => {
-    try {
-        const userId = await getAppUserId(req, res)
-
-        if (userId === null) {
-            return
-        }
-
-        const { data: settings, error: settingsError } = await supabaseAdmin
-            .from("user_download_settings")
-            .select("*")
-            .eq("user_id", userId)
-            .maybeSingle()
-
-        if (settingsError) {
-            console.error("Get download preferences error:", settingsError)
-            return res.status(500).json({ success: false, error: "Failed to get download preferences" })
-        }
-
-        return res.status(200).json({
-            success: true,
-            data: {
-                settings: settings || {
-                    user_id: userId,
-                    ...DOWNLOAD_SETTING_DEFAULTS,
-                    updated_at: null,
-                },
-            },
-        })
-    } catch (err) {
-        console.error("Error getting download preferences:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
-    }
-}
-
-export const UpdateDownloadPreferences = async (req: Request, res: Response) => {
-    const body = getRequestBody(req)
-    const updates: Record<string, unknown> = {}
-
-    if (hasOwn(body, "wifi_only")) {
-        if (typeof body.wifi_only !== "boolean") {
-            return res.status(400).json({ success: false, error: "wifi_only must be a boolean" })
-        }
-
-        updates.wifi_only = body.wifi_only
-    }
-
-    if (hasOwn(body, "quality")) {
-        if (!QUALITY_OPTIONS.includes(body.quality as typeof QUALITY_OPTIONS[number])) {
-            return res.status(400).json({ success: false, error: "quality must be one of standard or high" })
-        }
-
-        updates.quality = body.quality
-    }
-
-    try {
-        const userId = await getAppUserId(req, res)
-
-        if (userId === null) {
-            return
-        }
-
-        const { data: existingSettings, error: existingSettingsError } = await supabaseAdmin
-            .from("user_download_settings")
-            .select("*")
-            .eq("user_id", userId)
-            .maybeSingle()
-
-        if (existingSettingsError) {
-            console.error("Find download preferences before update error:", existingSettingsError)
-            return res.status(500).json({ success: false, error: "Failed to update download preferences" })
-        }
-
-        const { data: settings, error: settingsError } = await supabaseAdmin
-            .from("user_download_settings")
-            .upsert({
-                ...DOWNLOAD_SETTING_DEFAULTS,
-                ...(existingSettings || {}),
-                ...updates,
-                user_id: userId,
-                updated_at: new Date().toISOString(),
-            }, { onConflict: "user_id" })
-            .select("*")
-            .single()
-
-        if (settingsError) {
-            console.error("Update download preferences error:", settingsError)
-            return res.status(500).json({ success: false, error: "Failed to update download preferences" })
-        }
-
-        return res.status(200).json({ success: true, data: { settings } })
-    } catch (err) {
-        console.error("Error updating download preferences:", err)
-        return res.status(500).json({ success: false, error: "Internal server error" })
-    }
-}
-
 /**
  * Privacy preferences.
  *
@@ -444,7 +342,7 @@ export const UpdateDownloadPreferences = async (req: Request, res: Response) => 
  * has to check on every request — keeping it on the row that lookup already
  * loads avoids a second query per event. It is exposed here, next to the other
  * `/api/preferences/*` endpoints, and returned under `data.settings` so it
- * matches the shape of playback, download and notification settings.
+ * matches the shape of playback and notification settings.
  *
  * It is deliberately NOT folded into an existing preferences endpoint: the
  * frontend caches those four payloads independently, and adding an unrelated

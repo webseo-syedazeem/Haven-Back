@@ -736,11 +736,9 @@ export const DeleteAccount = async (req: Request, res: Response) => {
             const appUserId = userProfile.id
             const appUserTables = [
                 "user_favourites",
-                "user_downloads",
                 "user_play_history",
                 "user_sound_preferences",
                 "user_playback_settings",
-                "user_download_settings",
                 "user_notification_settings",
                 "user_playlists",
                 "user_player_state",

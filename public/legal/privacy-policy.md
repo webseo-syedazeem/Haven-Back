@@ -1,13 +1,13 @@
 # Privacy Policy for Passage
 
 **Effective Date:** 5 September 2026
-**Last Updated:** 5 September 2026
+**Last Updated:** 16 October 2026
 
 ## 1. Introduction
 
 This Privacy Policy explains how **HAPPY CHEEKS LTD** (company number 15146182), trading through the **Passage** mobile application ("Passage", "we", "us", or "our"), collects, uses, stores, and protects your information when you use the Passage mobile application and related services (collectively, the "App").
 
-Passage is a soundscape app for sleep, relaxation and focus. It offers a catalogue of soundscapes, playlists, downloads for offline listening, a sleep timer, and preferences that shape what is recommended to you.
+Passage is a soundscape app for sleep, relaxation and focus. It offers a catalogue of soundscapes, playlists, a sleep timer, and preferences that shape what is recommended to you.
 
 **Passage is free to use.** There is no subscription, no in-app purchase, no trial period and no premium tier. We never ask you for payment details, we do not use a payment processor, and we hold no billing or payment information of any kind.
 
@@ -33,10 +33,9 @@ We collect only what is needed to run the App for you.
 
 - **Favourites** — the soundscapes you save.
 - **Playlists** — the playlists you create and the soundscapes in them.
-- **Downloads** — which soundscapes you have downloaded for offline listening, their status, and file size.
 - **Play history and player state** — what you have played, when, and where you paused, so you can pick up where you left off.
 - **Sound preferences** — preferred environments and sounds, sounds you have asked us to avoid, detail preference, and typical session length.
-- **Playback, download and notification settings** — including your chosen wind-down reminder time, so your settings follow you to a new device.
+- **Playback and notification settings** — including your chosen wind-down reminder time, so your settings follow you to a new device.
 - **Onboarding answers** — your goals, starting mode, and situation, if you provide them during setup.
 
 ### 3.3 Push notification tokens
@@ -66,7 +65,7 @@ We do **not** collect health or fitness data, location data, contacts, advertisi
 We use your information to:
 
 - provide the App and play soundscapes, and let you resume where you left off;
-- keep your favourites, playlists, downloads and preferences available and in sync when you sign in on another device;
+- keep your favourites, playlists and preferences available and in sync when you sign in on another device;
 - choose what to recommend to you, and hide soundscapes containing sounds you have asked to avoid;
 - deliver the notifications you have turned on;
 - answer your support requests and act on the problems you report;
@@ -108,7 +107,7 @@ Passage relies on the following third-party services:
 
 We encourage you to review the privacy policies of any third-party service you connect.
 
-> **Note on audio:** Passage's soundscapes are produced in advance and stored in our library, then streamed or downloaded to your device. Your personal information is never sent to any audio-generation service to create them.
+> **Note on audio:** Passage's soundscapes are produced in advance and stored in our library, then streamed to your device. Your personal information is never sent to any audio-generation service to create them.
 
 ## 8. Data Storage and Security
 
@@ -127,7 +126,7 @@ No method of transmission or storage is completely secure. While we work hard to
 
 We keep your information for as long as your account is active or as needed to provide the App. When information is no longer needed, we delete or anonymise it, unless we are required to retain it for legal reasons.
 
-When you delete your account, we remove your account record and authentication account, your favourites, downloads, play history, playlists, player state, sound, playback, download and notification settings, onboarding answers, registered device tokens, and your profile picture files.
+When you delete your account, we remove your account record and authentication account, your favourites, play history, playlists, player state, sound, playback and notification settings, onboarding answers, registered device tokens, and your profile picture files.
 
 Support requests, and any analytics events collected while you had analytics switched on, are **retained but unlinked from your account** — the link to you is removed so the remaining record is anonymous. Information may also persist briefly in service-provider backups and logs until those records age out under the provider's normal retention cycle.
 

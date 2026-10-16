@@ -203,7 +203,7 @@ export const deleteByPrefix = (prefix: string): Promise<void> =>
 
 export const invalidateUser = async (
     userId: string | null | undefined,
-    suffixes: readonly string[] = ["continue-listening", "home-recommended", "recommendations", "favourites", "play-history", "downloads"],
+    suffixes: readonly string[] = ["continue-listening", "home-recommended", "recommendations", "favourites", "play-history"],
 ): Promise<void> => {
     const keys = suffixes.map((suffix) => userCacheKey(userId, suffix)).filter((key): key is string => key !== null)
     await invalidateContent({ keys, patterns: keys.map((key) => `${escapeGlob(key)}:*`) })
@@ -215,7 +215,7 @@ export const invalidateSoundscapes = (): Promise<void> => invalidateContent({
     // and user lists, including content that has just been retired.
     patterns: ["soundscapes:*", "soundscape:*", "library:*", "collections:*", "collection:*",
         "user:*:continue-listening", "user:*:home-recommended", "user:*:recommendations*",
-        "user:*:favourites", "user:*:play-history", "user:*:downloads"],
+        "user:*:favourites", "user:*:play-history"],
 })
 
 export const invalidateCollection = (collectionId: string): Promise<void> => invalidateContent({

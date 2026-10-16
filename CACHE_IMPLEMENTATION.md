@@ -34,7 +34,6 @@ Authenticated library requests still resolve their profile and exclusions from t
 | `/recommendations?count=N`, when N differs from default 4 | `user:<authUserId>:recommendations:count:<N>` | 60 |
 | `/favourites` | `user:<authUserId>:favourites` | 60 |
 | `/play-history` | `user:<authUserId>:play-history` | 60 |
-| `/downloads` | `user:<authUserId>:downloads` | 60 |
 
 `authUserId` is exclusively `req.user.id`, the authenticated Supabase UUID already used to resolve the database profile. Reads and invalidation use this same identifier. No query/body ID is trusted. Optional-auth recommendation requests without a nonblank ID bypass caching. Both recommendation endpoints are personalized.
 
@@ -43,7 +42,7 @@ Authenticated library requests still resolve their profile and exclusions from t
 - Soundscape search and suggestions: high-cardinality queries with low expected reuse.
 - Help `?q=` / `?search=` queries: likewise bypass the cache; search never contaminates `help:all`.
 - Anonymous recommendations: no shared null/guest user cache.
-- Other GETs, including player state, download storage, preferences, playlists, admin lists, auth and account export: outside the requested GET list.
+- Other GETs, including player state, preferences, playlists, admin lists, auth and account export: outside the requested GET list.
 - All mutation responses remain uncached.
 
 ## Invalidation matrix
@@ -52,17 +51,16 @@ Invalidation is awaited after successful database writes and before responding. 
 
 | Write controller / route | Keys deleted |
 | --- | --- |
-| `CreateAdminSoundscape`, `UpdateAdminSoundscape` when editable fields are written, `UpdateAdminSoundscapeStatus`, `DeleteAdminSoundscape`, `ReviseAdminSoundscape` | `soundscapes:*`, `soundscape:*`, `library:*`, `collections:*`, `collection:*`, `explore:groups`; every user's `continue-listening`, `home-recommended`, `recommendations*`, `favourites`, `play-history`, `downloads` |
+| `CreateAdminSoundscape`, `UpdateAdminSoundscape` when editable fields are written, `UpdateAdminSoundscapeStatus`, `DeleteAdminSoundscape`, `ReviseAdminSoundscape` | `soundscapes:*`, `soundscape:*`, `library:*`, `collections:*`, `collection:*`, `explore:groups`; every user's `continue-listening`, `home-recommended`, `recommendations*`, `favourites`, `play-history` |
 | `CreateAdminCollection`, `UpdateAdminCollection`, `PublishAdminCollection`, `AddAdminCollectionSoundscape`, `RemoveAdminCollectionSoundscape` | `collections:*`, `collection:<id>`, `explore:groups` |
 | `CreateAdminHelpArticle`, `UpdateAdminHelpArticle`, `PublishAdminHelpArticle`, `DeleteAdminHelpArticle` | `help:*`, covering the list and both old/new slugs |
 | POST `/favourites`, DELETE `/favourites/:soundscapeId` | This user's `favourites`, `recommendations` plus all counts, `home-recommended`; global `collections:popular` |
 | POST `/play-history` | This user's **`play-history` AND `continue-listening`**, plus `recommendations` and all counts, `home-recommended`; global `collections:popular` |
 | PUT `/player/state` | This user's `continue-listening` |
-| POST `/downloads`, PUT `/downloads/:soundscapeId/status`, DELETE `/downloads/:soundscapeId`, DELETE `/downloads` | This user's `downloads` |
 | PUT `/preferences/sound` | This user's `recommendations` and all counts, `home-recommended`, `continue-listening` |
 | POST `/onboarding` | Same preference keys after each committed onboarding/preference change |
 | POST `/account/import-guest-data` | After favourite insertion: same keys as favourite writes. After preference/onboarding writes: same keys as preference writes |
-| DELETE account (`DeleteAccount`) | All six of this user's cache families and recommendation variants; global `collections:popular` |
+| DELETE account (`DeleteAccount`) | All five of this user's cache families and recommendation variants; global `collections:popular` |
 
 Soundscape invalidation intentionally clears all modes/details/similarities and embedded soundscape copies. Thus mode changes cover both old and new modes, and retired content cannot persist in user or collection caches. Collection membership invalidation also runs if a later timestamp update fails. Onboarding, guest import and account deletion cover changes committed before a later operation fails.
 

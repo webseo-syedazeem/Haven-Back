@@ -42,8 +42,8 @@ results, not errors**, until you flip some rows:
 | `GET /api/soundscapes/:id/similar` | `Controller/Soundscape.ts:472` (source) `:487` (candidates) → **404** on source if draft |
 | `GET /api/collections/:id` soundscape list | `Controller/Soundscape.ts:616` |
 | `GET /api/recommendations`, `GET /api/home/recommended` | `Controller/Recommendations.ts:224` (`getRankedLiveSoundscapes`) → `best_match: null`, `soundscapes: []` (still `200`) |
-| `POST /api/favourites`, `POST /api/downloads`, `POST /api/play-history`, `PUT /api/player/state`, `POST /api/playlists/:id/items` | each calls a `getLiveSoundscape()` helper first → **`400` "Soundscape not found or not live"** if the id isn't live |
-| `GET /api/favourites`, `GET /api/downloads`, `GET /api/play-history`, `GET /api/home/continue-listening`, `GET /api/playlists/:id` | inner-join to `soundscapes` filtered `status = 'live'` → rows for non-live soundscapes silently vanish from the response |
+| `POST /api/favourites`, `POST /api/play-history`, `PUT /api/player/state`, `POST /api/playlists/:id/items` | each calls a `getLiveSoundscape()` helper first → **`400` "Soundscape not found or not live"** if the id isn't live |
+| `GET /api/favourites`, `GET /api/play-history`, `GET /api/home/continue-listening`, `GET /api/playlists/:id` | inner-join to `soundscapes` filtered `status = 'live'` → rows for non-live soundscapes silently vanish from the response |
 
 `GET /api/collections`, `GET /api/collections/popular`, and `GET /api/explore` are gated on
 **`collections.is_published = true`** instead (`Controller/Soundscape.ts:556, 704, 667`) — since no
@@ -143,11 +143,11 @@ and `POST /api/admin/soundscapes` already validate for and expect (`Controller/A
 3. `POST /api/onboarding` → then `GET /api/recommendations` (so preferences exist to score against).
 4. `PUT /api/player/state` → `GET /api/player/state`; `POST /api/play-history` →
    `GET /api/home/continue-listening`.
-5. Favourites, playlists, downloads, preferences, notification settings + device registration.
+5. Favourites, playlists, preferences, notification settings + device registration.
 6. Support, analytics, help (admin create+publish → public read).
 7. Account export / import-guest-data.
 8. **`DELETE /api/delete-account` last.** It is destructive — irreversibly deletes the user row, the
-   Supabase auth user, and every related row (favourites, downloads, playlists, play history,
+   Supabase auth user, and every related row (favourites, playlists, play history,
    preferences, onboarding, player state, device tokens, avatar storage files). Use a disposable
    test account for this step, not your main admin/test account.
 
@@ -442,46 +442,6 @@ and `POST /api/admin/soundscapes` already validate for and expect (`Controller/A
 
 ---
 
-## Downloads
-
-#### `POST /api/downloads`
-- **Auth:** Bearer.
-- **Body:** `{ "soundscape_id": "5688323a-2fd9-4a73-af65-29c211dc76e8", "quality": "standard" }` (`quality` optional, default `standard`, or `high`)
-- **Success response (200):** `{ "success": true, "data": { "download": { "id": 1, "user_id": 1, "soundscape_id": "...", "quality": "standard", "status": "queued", "progress_percent": 0, "downloaded_bytes": 0, "file_size_bytes": null, "updated_at": "..." } } }`
-- **Errors:** `400` missing `soundscape_id`, invalid `quality`, or not live; `401` no token; `500` server error.
-- **Verify:** calling again for the same `soundscape_id` resets status back to `queued` (upsert on `user_id,soundscape_id`) rather than erroring as a duplicate.
-
-#### `GET /api/downloads`
-- **Auth:** Bearer. **Body:** none.
-- **Success response (200):** `{ "success": true, "data": { "downloads": [ { "id": 1, "quality": "standard", "status": "queued", "soundscape": { "title": "...", "artwork_url": null, "mode": "sleep", "duration_seconds": 30 } } ] } }`
-- **Errors:** `401` no token; `500` server error.
-
-#### `GET /api/downloads/storage`
-- **Auth:** Bearer. **Body:** none.
-- **Success response (200):** `{ "success": true, "data": { "total_bytes": 0, "count": 0 } }`
-- **Errors:** `401` no token; `500` server error.
-- **Verify:** only `status = "completed"` downloads count toward `total_bytes`/`count` — set a download to `completed` via the status endpoint first to see it change.
-
-#### `PUT /api/downloads/:soundscapeId/status`
-- **Auth:** Bearer.
-- **Path params:** `:soundscapeId`.
-- **Body:** `{ "status": "completed", "progress_percent": 100, "downloaded_bytes": 4096000 }` (`status` required; `progress_percent` 0–100 and `downloaded_bytes` ≥0 optional)
-- **Success response (200):** `{ "success": true, "data": { "download": { "...updated row..." } } }`
-- **Errors:** `400` invalid `status`/`progress_percent`/`downloaded_bytes`; `401` no token; `404` download not found (create it via `POST /api/downloads` first); `500` server error.
-
-#### `DELETE /api/downloads/:soundscapeId`
-- **Auth:** Bearer. **Path params:** `:soundscapeId`. **Body:** No body.
-- **Success response (200):** `{ "success": true, "data": { "download": { /* deleted row */ } } }`
-- **Errors:** `401` no token; `404` not found; `500` server error.
-
-#### `DELETE /api/downloads`
-- **Auth:** Bearer. **Body:** No body.
-- **Success response (200):** `{ "success": true, "data": { "deleted_count": 2 } }`
-- **Errors:** `401` no token; `500` server error.
-- **Verify:** deletes **all** of the user's download records at once — confirm `GET /api/downloads` is empty afterward.
-
----
-
 ## Play History
 
 #### `POST /api/play-history`
@@ -520,17 +480,6 @@ and `POST /api/admin/soundscapes` already validate for and expect (`Controller/A
 #### `PUT /api/preferences/playback`
 - **Auth:** Bearer.
 - **Body:** `{ "background_playback": false, "default_timer_minutes": 30, "fade_enabled": true, "end_behaviour": "gentle_tone", "quality": "high", "autoplay_next": true }` (all optional)
-- **Success response (200):** `{ "success": true, "data": { "settings": { "...": "..." } } }`
-- **Errors:** `400` invalid type/enum value; `401` no token; `500` server error.
-
-#### `GET /api/preferences/downloads`
-- **Auth:** Bearer. **Body:** none.
-- **Success response (200):** `{ "success": true, "data": { "settings": { "user_id": 1, "wifi_only": true, "quality": "standard", "updated_at": null } } }`
-- **Errors:** `401` no token; `500` server error.
-
-#### `PUT /api/preferences/downloads`
-- **Auth:** Bearer.
-- **Body:** `{ "wifi_only": false, "quality": "high" }` (both optional)
 - **Success response (200):** `{ "success": true, "data": { "settings": { "...": "..." } } }`
 - **Errors:** `400` invalid type/enum value; `401` no token; `500` server error.
 
@@ -577,7 +526,7 @@ and `POST /api/admin/soundscapes` already validate for and expect (`Controller/A
 
 #### `POST /api/support/contact`
 - **Auth:** Optional Bearer — guests must supply `contact_email`.
-- **Body:** `{ "subject": "Question about downloads", "message": "How much storage do downloads use?", "contact_email": "guest@example.com" }` (`message` required; `subject`/`contact_email` optional for signed-in users, `contact_email` required for guests)
+- **Body:** `{ "subject": "Question about playlists", "message": "How many soundscapes can a playlist hold?", "contact_email": "guest@example.com" }` (`message` required; `subject`/`contact_email` optional for signed-in users, `contact_email` required for guests)
 - **Success response (201):** `{ "success": true, "data": { "request": { "id": 1, "user_id": null, "type": "contact_support", "subject": "...", "message": "...", "contact_email": "guest@example.com", "created_at": "..." } } }`
 - **Errors:** `400` missing `message`, or guest missing `contact_email`; `500` server error.
 
@@ -672,7 +621,7 @@ and `POST /api/admin/soundscapes` already validate for and expect (`Controller/A
 - **Auth:** Bearer. **Body:** none.
 - **Success response (200):** `{ "success": true, "data": { "exported_at": "...", "account": { "id": 1, "email": "...", "name": "..." }, "favourites": [...], "playlists": [ { "...": "...", "items": [...] } ], "downloads": [...], "play_history": { "entries": [...] }, "onboarding": null, "player_state": null, "device_tokens": [...], "sound_preferences": { "...": "..." }, "playback_settings": { "...": "..." }, "download_settings": { "...": "..." }, "notification_settings": { "...": "..." }, "support_requests": [...] } }`
 - **Errors:** `401` no token; `500` server error.
-- **Verify:** run this after exercising the other endpoints and confirm every prior write (a favourite, a playlist, a download, a play, a support request) shows up here — this is meant to be a complete data dump.
+- **Verify:** run this after exercising the other endpoints and confirm every prior write (a favourite, a playlist, a play, a support request) shows up here — this is meant to be a complete data dump.
 
 #### `POST /api/account/import-guest-data`
 - **Auth:** Bearer.
@@ -699,8 +648,8 @@ and `POST /api/admin/soundscapes` already validate for and expect (`Controller/A
 - **Success response (200):** `{ "success": true, "data": { "message": "Account deleted successfully" } }`
 - **Errors:** `401` no/invalid token; `500` server error.
 - **⚠️ Destructive — run this last, on a throwaway test account.** Deletes rows from
-  `user_favourites, user_downloads, user_play_history, user_sound_preferences,
-  user_playback_settings, user_download_settings, user_notification_settings, user_playlists,
+  `user_favourites, user_play_history, user_sound_preferences,
+  user_playback_settings, user_notification_settings, user_playlists,
   user_player_state, user_onboarding, user_device_tokens`, removes any avatar storage files, deletes
   the `public.users` row, then deletes the Supabase **auth** user itself — the account cannot sign in
   again afterward.

@@ -1,11 +1,9 @@
 import express from "express"
 import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
 import {
-    GetDownloadPreferences,
     GetPlaybackPreferences,
     GetPrivacyPreferences,
     GetSoundPreferences,
-    UpdateDownloadPreferences,
     UpdatePlaybackPreferences,
     UpdatePrivacyPreferences,
     UpdateSoundPreferences,
@@ -159,58 +157,6 @@ PreferencesRoutes.get("/preferences/playback", AuthMiddleware, GetPlaybackPrefer
  *         description: Server error
  */
 PreferencesRoutes.put("/preferences/playback", AuthMiddleware, UpdatePlaybackPreferences)
-
-/**
- * @swagger
- * /api/preferences/downloads:
- *   get:
- *     tags:
- *       - Preferences
- *     summary: Get the current user's download settings
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       '200':
- *         description: Download settings returned successfully
- *       '401':
- *         description: Invalid or missing session
- *       '500':
- *         description: Server error
- */
-PreferencesRoutes.get("/preferences/downloads", AuthMiddleware, GetDownloadPreferences)
-
-/**
- * @swagger
- * /api/preferences/downloads:
- *   put:
- *     tags:
- *       - Preferences
- *     summary: Partially update the current user's download settings
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               wifi_only:
- *                 type: boolean
- *               quality:
- *                 type: string
- *                 enum: [standard, high]
- *     responses:
- *       '200':
- *         description: Download settings updated successfully
- *       '400':
- *         description: Invalid setting value
- *       '401':
- *         description: Invalid or missing session
- *       '500':
- *         description: Server error
- */
-PreferencesRoutes.put("/preferences/downloads", AuthMiddleware, UpdateDownloadPreferences)
 
 /**
  * @swagger

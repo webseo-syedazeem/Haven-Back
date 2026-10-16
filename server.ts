@@ -13,7 +13,6 @@ import Authroutes from "./Routes/Auth.ts"
 import SoundscapeRoutes from "./Routes/Soundscape.ts"
 import FavouritesRoutes from "./Routes/Favourites.ts"
 import PlaylistsRoutes from "./Routes/Playlists.ts"
-import DownloadsRoutes from "./Routes/Downloads.ts"
 import PlayHistoryRoutes from "./Routes/PlayHistory.ts"
 import PreferencesRoutes from "./Routes/Preferences.ts"
 import NotificationsRoutes from "./Routes/Notifications.ts"
@@ -439,7 +438,6 @@ app.use("/api", Authroutes)
 app.use("/api", SoundscapeRoutes)
 app.use("/api", FavouritesRoutes)
 app.use("/api", PlaylistsRoutes)
-app.use("/api", DownloadsRoutes)
 app.use("/api", PlayHistoryRoutes)
 app.use("/api", PreferencesRoutes)
 app.use("/api", NotificationsRoutes)

@@ -23,11 +23,6 @@ const PLAYBACK_SETTING_DEFAULTS = {
     autoplay_next: false,
 }
 
-const DOWNLOAD_SETTING_DEFAULTS = {
-    wifi_only: true,
-    quality: "standard",
-}
-
 const NOTIFICATION_SETTING_DEFAULTS = {
     reminders_enabled: false,
     new_collection_alerts: false,
@@ -70,11 +65,9 @@ export const ExportAccountData = async (req: Request, res: Response) => {
         const [
             favouritesResult,
             playlistsResult,
-            downloadsResult,
             playHistoryResult,
             soundPreferencesResult,
             playbackSettingsResult,
-            downloadSettingsResult,
             notificationSettingsResult,
             supportRequestsResult,
             onboardingResult,
@@ -92,11 +85,6 @@ export const ExportAccountData = async (req: Request, res: Response) => {
                 .eq("user_id", userId)
                 .order("updated_at", { ascending: false }),
             supabaseAdmin
-                .from("user_downloads")
-                .select("*, soundscape:soundscapes(title)")
-                .eq("user_id", userId)
-                .order("created_at", { ascending: false }),
-            supabaseAdmin
                 .from("user_play_history")
                 .select("id, user_id, soundscape_id, played_at, soundscape:soundscapes(title)")
                 .eq("user_id", userId)
@@ -108,11 +96,6 @@ export const ExportAccountData = async (req: Request, res: Response) => {
                 .maybeSingle(),
             supabaseAdmin
                 .from("user_playback_settings")
-                .select("*")
-                .eq("user_id", userId)
-                .maybeSingle(),
-            supabaseAdmin
-                .from("user_download_settings")
                 .select("*")
                 .eq("user_id", userId)
                 .maybeSingle(),
@@ -146,11 +129,9 @@ export const ExportAccountData = async (req: Request, res: Response) => {
         const queryErrors = [
             ["favourites", favouritesResult.error],
             ["playlists", playlistsResult.error],
-            ["downloads", downloadsResult.error],
             ["play history", playHistoryResult.error],
             ["sound preferences", soundPreferencesResult.error],
             ["playback settings", playbackSettingsResult.error],
-            ["download settings", downloadSettingsResult.error],
             ["notification settings", notificationSettingsResult.error],
             ["support requests", supportRequestsResult.error],
             ["onboarding", onboardingResult.error],
@@ -197,7 +178,6 @@ export const ExportAccountData = async (req: Request, res: Response) => {
                 account,
                 favourites: favouritesResult.data || [],
                 playlists,
-                downloads: downloadsResult.data || [],
                 play_history: {
                     entries: playHistoryResult.data || [],
                 },
@@ -213,11 +193,6 @@ export const ExportAccountData = async (req: Request, res: Response) => {
                     playbackSettingsResult.data,
                     userId,
                     PLAYBACK_SETTING_DEFAULTS,
-                ),
-                download_settings: withDefaults(
-                    downloadSettingsResult.data,
-                    userId,
-                    DOWNLOAD_SETTING_DEFAULTS,
                 ),
                 notification_settings: withDefaults(
                     notificationSettingsResult.data,

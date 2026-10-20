@@ -96,6 +96,9 @@ AdminRoutes.post("/admin/upload-image", ...requireAdmin, AdminImageUploadMiddlew
  *                 type: string
  *               one_line_description:
  *                 type: string
+ *               detail_description:
+ *                 type: string
+ *                 nullable: true
  *               designed_for:
  *                 type: string
  *               best_use:

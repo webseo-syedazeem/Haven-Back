@@ -484,6 +484,7 @@ const options = {
                         title: { type: "string" },
                         short_title: { type: "string", nullable: true },
                         one_line_description: { type: "string", nullable: true },
+                        detail_description: { type: "string", nullable: true },
                         designed_for: { type: "string", nullable: true },
                         best_use: { type: "string", nullable: true },
                         artwork_url: { type: "string", nullable: true },

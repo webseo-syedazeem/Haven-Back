@@ -21,6 +21,7 @@ const SOUNDSCAPE_TEXT_FIELDS = [
     "title",
     "short_title",
     "one_line_description",
+    "detail_description",
     "designed_for",
     "best_use",
     "artwork_url",

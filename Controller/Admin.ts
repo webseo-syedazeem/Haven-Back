@@ -22,6 +22,7 @@ const SOUNDSCAPE_TEXT_FIELDS = [
     "short_title",
     "one_line_description",
     "detail_description",
+    "colour",
     "designed_for",
     "best_use",
     "artwork_url",
@@ -214,6 +215,10 @@ const validateSoundscapeFields = (body: unknown): ValidationResult => {
         const validated = validateNullableText(field, body[field])
         if (validated.error) {
             return { values, error: validated.error }
+        }
+
+        if (field === "colour" && validated.value && !/^#[0-9a-f]{6}$/i.test(validated.value)) {
+            return { values, error: "colour must be a six-digit hex colour, e.g. #326C82" }
         }
 
         if (field === "science_note" && validated.value) {

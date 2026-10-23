@@ -485,6 +485,7 @@ const options = {
                         short_title: { type: "string", nullable: true },
                         one_line_description: { type: "string", nullable: true },
                         detail_description: { type: "string", nullable: true },
+                        colour: { type: "string", nullable: true, pattern: "^#[0-9A-Fa-f]{6}$", example: "#326C82" },
                         designed_for: { type: "string", nullable: true },
                         best_use: { type: "string", nullable: true },
                         artwork_url: { type: "string", nullable: true },

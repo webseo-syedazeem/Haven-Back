@@ -99,6 +99,11 @@ AdminRoutes.post("/admin/upload-image", ...requireAdmin, AdminImageUploadMiddlew
  *               detail_description:
  *                 type: string
  *                 nullable: true
+ *               colour:
+ *                 type: string
+ *                 nullable: true
+ *                 pattern: '^#[0-9A-Fa-f]{6}$'
+ *                 example: '#326C82'
  *               designed_for:
  *                 type: string
  *               best_use:

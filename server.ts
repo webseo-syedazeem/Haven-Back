@@ -250,7 +250,7 @@ app.use(
     })
 )
 
-if (process.env.NODE_ENV === "Production") {
+if (process.env.NODE_ENV === "production") {
     app.use("/api", apiLimiter)
     app.use("/api/signin", authLimiter)
     app.use("/api/signup", authLimiter)

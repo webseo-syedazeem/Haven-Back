@@ -49,7 +49,7 @@ const AuthRoutes = express.Router()
  *                 example: strongPassword123
  *               username:
  *                 type: string
- *                 example: HalcyonUser
+ *                 example: PassageUser
  *             required:
  *               - email
  *               - password

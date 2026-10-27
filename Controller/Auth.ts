@@ -350,7 +350,15 @@ export const GoogleSignIn = async (req: Request, res: Response) => {
     try {
         if (await rejectAuthenticatedRequest(req, res)) return
 
-        const { data, error } = await supabaseAdmin.auth.signInWithIdToken({
+        // Create a short-lived client for this Google sign-in to avoid persisting session on the shared admin client
+        const googleAuthClient = createClient(supabaseUrlValue, supabaseAnonKeyValue, {
+            auth: {
+                persistSession: false,
+                autoRefreshToken: false,
+            },
+        })
+
+        const { data, error } = await googleAuthClient.auth.signInWithIdToken({
             provider: "google",
             token: String(id_token).trim(),
         })

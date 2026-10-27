@@ -1,4 +1,4 @@
-# Halcyon API Testing Guide
+# Passage API Testing Guide
 
 Read-only reference derived from the actual route/controller/SQL code (`server.ts`,
 `Routes/*.ts`, `Controller/*.ts`, `Database/*.sql`) as of this writing. Every request/response

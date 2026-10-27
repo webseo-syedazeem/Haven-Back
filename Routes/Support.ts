@@ -23,7 +23,7 @@ const SupportRoutes = express.Router()
  *   post:
  *     tags:
  *       - Support
- *     summary: Contact Halcyon support
+ *     summary: Contact Passage support
  *     description: Authentication is optional. Guest submissions must provide contact_email.
  *     security:
  *       - bearerAuth: []

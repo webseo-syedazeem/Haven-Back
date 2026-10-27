@@ -10,8 +10,18 @@ if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
     process.exit(1)
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+    },
+})
+export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+    },
+})
 export const supabaseUrlValue = supabaseUrl
 export const supabaseAnonKeyValue = supabaseAnonKey
 

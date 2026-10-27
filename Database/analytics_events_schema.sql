@@ -1,4 +1,4 @@
--- Minimal analytics event log for Halcyon (Section 9.1 / 10.2).
+-- Minimal analytics event log for Passage (Section 9.1 / 10.2).
 -- Client-driven event ingest only — run this in the Supabase SQL editor.
 
 create extension if not exists pgcrypto;

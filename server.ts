@@ -144,7 +144,7 @@ const renderPrivacyPolicyPage = (markdown: string) => {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Halcyon Privacy Policy</title>
+  <title>Passage Privacy Policy</title>
   <style>
     :root {
       color-scheme: light;
@@ -455,9 +455,9 @@ const options = {
     definition: {
         openapi: "3.0.0",
         info: {
-            title: "Halcyon API",
+            title: "Passage API",
             version: "1.0.0",
-            description: "Halcyon API documentation",
+            description: "Passage API documentation",
         },
         servers: [
             {

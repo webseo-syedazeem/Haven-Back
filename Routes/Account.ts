@@ -17,7 +17,7 @@ const AccountRoutes = express.Router()
  *   get:
  *     tags:
  *       - Account
- *     summary: Export all data Halcyon stores for the current user
+ *     summary: Export all data Passage stores for the current user
  *     security:
  *       - bearerAuth: []
  *     responses:

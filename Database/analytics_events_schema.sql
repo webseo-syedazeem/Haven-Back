@@ -17,3 +17,9 @@ create index if not exists idx_analytics_events_name_created
 
 create index if not exists idx_analytics_events_user
     on public.analytics_events (user_id, created_at desc);
+
+create index if not exists idx_analytics_events_session_created
+    on public.analytics_events (session_id, created_at desc);
+
+comment on table public.analytics_events is
+    'Privacy-minimised product analytics. Never store check-in reflections, health answers, auth tokens, or free-form wellbeing text in event_data.';

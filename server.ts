@@ -1,9 +1,11 @@
 ﻿import express from "express"
-import type { Request, Response } from "express"
+import type { NextFunction, Request, Response } from "express"
+import "./instrument.ts"
 import "dotenv/config"
 import cors from "cors"
 import helmet from "helmet"
-import morgan from "morgan"
+import { pinoHttp } from "pino-http"
+import { randomUUID } from "crypto"
 import rateLimit from "express-rate-limit"
 import fs from "fs"
 import path from "path"
@@ -27,6 +29,9 @@ import OnboardingRoutes from "./Routes/Onboarding.ts"
 import HelpRoutes from "./Routes/Help.ts"
 import { connectRedis } from "./Config/RedisConnection.ts"
 import { parseAudioByteRange } from "./Utils/AudioRange.ts"
+import { Sentry } from "./instrument.ts"
+import { logger } from "./Config/Logger.ts"
+import { Health } from "./Controller/Health.ts"
 
 const app = express()
 app.set("trust proxy", 1)
@@ -38,7 +43,7 @@ const adminPanelPath = path.join(process.cwd(), "public", "admin", "index.html")
 
 // Files are read in bounded pieces, but this is only the server-side I/O buffer.
 // It must never cap an open-ended HTTP Range response from a media player.
-const AUDIO_STREAM_BUFFER_SIZE = 128 * 1024
+const AUDIO_STREAM_BUFFER_SIZE = 512 * 1024 // Increased from 128KB to 512KB for faster buffering
 const AUDIO_CONTENT_TYPES: Record<string, string> = {
     ".m4a": "audio/mp4", // AAC Standard
     ".mp3": "audio/mpeg",
@@ -263,14 +268,21 @@ if (process.env.NODE_ENV === "production") {
     app.use(express.urlencoded({ extended: true }))
 }
 
-morgan.token("time", () => {
-    return new Date().toLocaleString()
-})
-
 app.use(
-    morgan(
-        ":time | :method :url | Status: :status | Response Time: :response-time ms"
-    )
+    pinoHttp({
+        logger,
+        genReqId: (req, res) => {
+            const incoming = req.headers["x-request-id"]
+            const requestId = typeof incoming === "string" && incoming.trim() ? incoming.trim() : randomUUID()
+            res.setHeader("X-Request-Id", requestId)
+            return requestId
+        },
+        autoLogging: { ignore: (req) => req.url === "/health" },
+        serializers: {
+            req: (req) => ({ id: req.id, method: req.method, url: req.url }),
+            res: (res) => ({ statusCode: res.statusCode }),
+        },
+    })
 )
 
 // ASYNC HIGH-PERFORMANCE AUDIO STREAMING ENGINE (Spotify-Style)
@@ -554,6 +566,8 @@ const swaggerSpec = swaggerJsdoc(options)
 
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec))
 
+app.get("/health", Health)
+
 /**
  * @swagger
  * /:
@@ -570,29 +584,49 @@ app.get("/", (req, res) => {
     })
 })
 
+app.use((req, res) => {
+    res.status(404).json({ success: false, error: "Route not found", code: "NOT_FOUND" })
+})
+
+Sentry.setupExpressErrorHandler(app)
+app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
+    const requestId = String(req.id || res.getHeader("X-Request-Id") || randomUUID())
+    Sentry.withScope((scope) => {
+        scope.setTag("request_id", requestId)
+        if (req.user?.id) scope.setUser({ id: req.user.id })
+        Sentry.captureException(error)
+    })
+    req.log?.error({ err: error, requestId }, "Unhandled request error")
+    if (res.headersSent) return
+    res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        code: "INTERNAL_SERVER_ERROR",
+        request_id: requestId,
+    })
+})
+
 const PORT = Number(process.env.PORT) || 3000
 const SERVER_URL = process.env.SERVER_URL || "http://localhost:3000"
 
 const startServer = async () => {
     try {
         await connectRedis()
-        console.log("Redis startup check completed")
+        logger.info("Redis startup check completed")
     } catch (error: any) {
-        console.error("Unable to connect to Redis before server startup:", error.message)
+        logger.fatal({ err: error }, "Unable to connect to Redis before server startup")
         process.exit(1)
     }
 
     const server = app.listen(PORT)
 
     server.on("listening", () => {
-        console.log(`Server running on port ${SERVER_URL}`)
+        logger.info({ port: PORT, serverUrl: SERVER_URL }, "Server listening")
     })
 
     server.on("error", (error: NodeJS.ErrnoException) => {
         if (error.code === "EADDRINUSE") {
-            console.error(
-                `Port ${PORT} is already in use. Change PORT in .env or stop the other Node process.`
-            )
+            logger.fatal({ port: PORT }, "Port is already in use")
             process.exit(1)
         }
 

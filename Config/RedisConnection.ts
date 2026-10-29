@@ -1,11 +1,12 @@
 ﻿import "dotenv/config"
 import { Redis } from "ioredis"
+import { logger } from "./Logger.ts"
 
 const redisUrl = process.env.REDIS_URL
 const REDIS_CONNECT_TIMEOUT_MS = 10000
 
 if (!redisUrl) {
-    console.error("Redis URL is missing in environment variables.")
+    logger.fatal("Redis URL is missing")
     process.exit(1)
 }
 
@@ -19,23 +20,23 @@ export const redis = new Redis(redisUrl, {
 let connectionPromise: Promise<void> | null = null
 
 redis.on("ready", () => {
-    console.log("Redis connected successfully")
+    logger.info("Redis connected successfully")
 })
 
 redis.on("error", (error: Error) => {
-    console.error("Redis connection error:", error.message)
+    logger.error({ err: error }, "Redis connection error")
 })
 
 redis.on("close", () => {
-    console.warn("Redis connection closed")
+    logger.warn("Redis connection closed")
 })
 
 redis.on("end", () => {
-    console.warn("Redis connection ended")
+    logger.warn("Redis connection ended")
 })
 
 redis.on("reconnecting", (delay: number) => {
-    console.warn(`Redis reconnecting in ${delay}ms`)
+    logger.warn({ delayMs: delay }, "Redis reconnecting")
 })
 
 const rejectAfterTimeout = () => {
@@ -62,7 +63,7 @@ export const connectRedis = async () => {
             .catch((error: Error) => {
                 connectionPromise = null
                 redis.disconnect()
-                console.error("Redis initial connection failed:", error.message)
+                logger.error({ err: error }, "Redis initial connection failed")
                 throw error
             })
     }

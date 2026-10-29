@@ -26,10 +26,12 @@ import {
 import { AdminImageUploadMiddleware, UploadAdminImage } from "../Controller/AdminImageUpload.ts"
 import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
 import { AdminAuthMiddleware } from "../Middleware/AdminAuthMiddleware.ts"
+import { GetAdminMonitoring } from "../Controller/AdminMonitoring.ts"
 
 const AdminRoutes = express.Router()
 const requireAdmin = [AuthMiddleware, AdminAuthMiddleware] as const
 
+AdminRoutes.get("/admin/monitoring", ...requireAdmin, GetAdminMonitoring)
 AdminRoutes.get("/admin/support", ...requireAdmin, GetAdminSupport)
 AdminRoutes.get("/admin/support/:id", ...requireAdmin, GetOneAdminSupport)
 AdminRoutes.put("/admin/support/:id/status", ...requireAdmin, UpdateAdminSupportStatus)

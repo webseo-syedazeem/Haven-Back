@@ -61,7 +61,7 @@ insert into public.soundscapes (
     'Settle into the enclosed wooden cabin of a sailing boat moving quietly through the Stockholm Archipelago on a summer evening. Gentle hull creaks blend with the continuous sound of water slipping past the timber, while soft rigging tension travels through the structure without sharp snaps or flapping sails. The scene evolves slowly with softened peaks and no human activity, creating a warm, steady sense of movement that can help you unwind and remain immersed in a peaceful maritime setting.',
     'Gentle natural variation for active unwinding; not a clinical claim.',
     'Unwinding and place immersion',
-    'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-R042-wooden-sailing-boat.webp',
+    'https://passagesounds.app/passage_soundscape_images_webp/P-R042-wooden-sailing-boat.webp',
     array[
       'Gentle hull creaks over continuous water slipping past timber.',
       'Soft rigging tension heard through the structure, without flapping.'
@@ -98,9 +98,9 @@ insert into public.soundscapes (
     true,
     null,
     'live',
-    'https://thehappyapp.co.uk/soundscapes/Relax/P-R042%20Wooden%20Sailing%20Boat%20Final%20Audio.m4a',
+    'https://passagesounds.app/soundscapes/Relax/P-R042%20Wooden%20Sailing%20Boat%20Final%20Audio.m4a',
     87372643,
-    'https://thehappyapp.co.uk/previews/Relax/P-R042%20Wooden%20Sailing%20Boat%20Final%20Audio.m4a',
+    'https://passagesounds.app/previews/Relax/P-R042%20Wooden%20Sailing%20Boat%20Final%20Audio.m4a',
     array['relaxation', 'wooden sailing boat', 'sailing cabin', 'Stockholm Archipelago', 'hull creaks', 'water', 'rigging', 'below deck']::text[],
     0,
     null,
@@ -124,7 +124,7 @@ insert into public.soundscapes (
     'Step inside a sheltered chamber of a traditional Dutch windmill near Delft, listening from behind a timber partition as the mechanism turns at an unhurried pace. Slow wooden gear friction and a subdued cyclical rumble are softened by the natural resonance of the building, with no harsh impacts, squeals or exterior gusts. The measured rhythm and enclosed wooden atmosphere create a grounded, gently absorbing experience suited to quiet relaxation and place immersion.',
     'Gentle natural variation for active unwinding; not a clinical claim.',
     'Unwinding and place immersion',
-    'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-R043-inside-a-dutch-windmill.webp',
+    'https://passagesounds.app/passage_soundscape_images_webp/P-R043-inside-a-dutch-windmill.webp',
     array[
       'Slow wooden gear friction and a subdued cyclical rumble.',
       'Soft building resonance; exterior wind is not a sound layer.'
@@ -161,9 +161,9 @@ insert into public.soundscapes (
     true,
     null,
     'live',
-    'https://thehappyapp.co.uk/soundscapes/Relax/P-R043%20Inside%20a%20Dutch%20Windmill%20Final%20Audio.m4a',
+    'https://passagesounds.app/soundscapes/Relax/P-R043%20Inside%20a%20Dutch%20Windmill%20Final%20Audio.m4a',
     87237003,
-    'https://thehappyapp.co.uk/previews/Relax/P-R043%20Inside%20a%20Dutch%20Windmill%20Final%20Audio.m4a',
+    'https://passagesounds.app/previews/Relax/P-R043%20Inside%20a%20Dutch%20Windmill%20Final%20Audio.m4a',
     array['relaxation', 'Dutch windmill', 'Delft', 'wooden gears', 'mechanical interior', 'timber resonance', 'cyclical rumble', 'quiet interior']::text[],
     0,
     null,

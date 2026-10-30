@@ -64,6 +64,45 @@ const createAuthClient = (token: string) =>
         },
     })
 
+/**
+ * A throwaway client for a single session-changing auth call (sign-in, sign-up,
+ * refresh, re-auth). The shared module-level `supabase` client single-flights
+ * refreshes per instance, so two users refreshing within the same window could
+ * both receive the FIRST user's new session — a silent cross-account takeover
+ * (audit C-1). A fresh instance per request shares no in-flight or in-memory
+ * session state.
+ */
+const createEphemeralAuthClient = () =>
+    createClient(supabaseUrlValue, supabaseAnonKeyValue, {
+        auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+        },
+    })
+
+/**
+ * Supabase access tokens carry an `amr` (authentication methods reference)
+ * claim listing how the session was obtained. A password-reset link produces a
+ * `recovery` (or `otp`) session; a normal sign-in produces `password`/`oauth`.
+ * `/reset-password` must only accept the former, or any valid access token
+ * could set a new password with no other proof (audit H-1). The token has
+ * already been validated with Supabase by the caller, so the payload is
+ * decoded here only to read its claims, not to establish trust.
+ */
+const tokenIsRecoverySession = (token: string): boolean => {
+    try {
+        const payload = token.split(".")[1]
+        if (!payload) return false
+        const json = Buffer.from(payload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
+        const claims = JSON.parse(json) as { amr?: Array<{ method?: string }> }
+        if (!Array.isArray(claims.amr)) return false
+        return claims.amr.some((entry) => entry?.method === "recovery" || entry?.method === "otp")
+    } catch {
+        return false
+    }
+}
+
 const rejectAuthenticatedRequest = async (req: Request, res: Response) => {
     const authHeader = String(req.headers.authorization || "").trim()
     if (!authHeader) {
@@ -120,7 +159,7 @@ export const SignUp = async (req: Request, res: Response) => {
         }
 
         const signUpStartedAt = Date.now()
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await createEphemeralAuthClient().auth.signUp({
             email: cleanEmail,
             password,
             options: {
@@ -252,7 +291,7 @@ export const SignIn = async (req: Request, res: Response) => {
     try {
         if (await rejectAuthenticatedRequest(req, res)) return
 
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await createEphemeralAuthClient().auth.signInWithPassword({
             email: cleanEmail,
             password,
         })
@@ -350,13 +389,9 @@ export const GoogleSignIn = async (req: Request, res: Response) => {
     try {
         if (await rejectAuthenticatedRequest(req, res)) return
 
-        // Create a short-lived client for this Google sign-in to avoid persisting session on the shared admin client
-        const googleAuthClient = createClient(supabaseUrlValue, supabaseAnonKeyValue, {
-            auth: {
-                persistSession: false,
-                autoRefreshToken: false,
-            },
-        })
+        // A short-lived client for this Google sign-in keeps the session off the
+        // shared admin client (audit C-2).
+        const googleAuthClient = createEphemeralAuthClient()
 
         const { data, error } = await googleAuthClient.auth.signInWithIdToken({
             provider: "google",
@@ -432,7 +467,9 @@ export const RefreshToken = async (req: Request, res: Response) => {
     }
 
     try {
-        const { data, error } = await supabase.auth.refreshSession({
+        // Per-request client: the shared one would hand a concurrent refresher
+        // the wrong user's session (audit C-1).
+        const { data, error } = await createEphemeralAuthClient().auth.refreshSession({
             refresh_token: cleanRefreshToken,
         })
 
@@ -525,6 +562,19 @@ export const ResetPassword = async (req: Request, res: Response) => {
             return authError(res, 401, "INVALID_TOKEN", "Password reset token is invalid or expired")
         }
 
+        // H-1: only a recovery/OTP session may reset a password without the old
+        // one. A normal access token must go through /change-password (which
+        // requires the current password), so it cannot silently take over an
+        // account here.
+        if (!tokenIsRecoverySession(token)) {
+            return authError(
+                res,
+                403,
+                "INVALID_TOKEN",
+                "This action requires a password-reset link. To change a known password, use change password instead",
+            )
+        }
+
         const { data, error } = await authClient.auth.updateUser({ password: cleanPassword })
 
         if (error) {
@@ -563,7 +613,7 @@ export const ChangePassword = async (req: Request, res: Response) => {
             return authError(res, 400, "AUTH_ERROR", "Password change is unavailable because this account has no email")
         }
 
-        const { error: reauthError } = await supabase.auth.signInWithPassword({
+        const { error: reauthError } = await createEphemeralAuthClient().auth.signInWithPassword({
             email: String(user.email || ""),
             password: cleanOldPassword,
         })
@@ -698,8 +748,11 @@ export const Logout = async (req: Request, res: Response) => {
     }
 
     try {
-        const authClient = createAuthClient(token)
-        const { error } = await authClient.auth.signOut()
+        // H-2: a client built from only a global Authorization header has no
+        // stored session, so its `signOut()` revokes nothing (zero network
+        // calls). Revoke the token server-side with the admin API instead so a
+        // logged-out (or stolen) refresh token actually stops working.
+        const { error } = await supabaseAdmin.auth.admin.signOut(token, "global")
 
         if (error) {
             logAuthFailure("Logout failed", error)

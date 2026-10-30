@@ -1,7 +1,6 @@
 node_modules/
 .npm-cache/
 .env
-package-lock.json
 dist/
 .env.live
 300 sound scapes/

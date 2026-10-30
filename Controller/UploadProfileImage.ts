@@ -1,7 +1,10 @@
 import type { NextFunction, Request, Response } from "express"
 import multer from "multer"
+import sharp from "sharp"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
 import { authError } from "../Utils/AuthValidation.ts"
+
+const AVATAR_DIMENSION = 512
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
 const AVATAR_BUCKET = "avatars"
@@ -57,9 +60,28 @@ export const UploadProfileImage = async (req: Request, res: Response) => {
 
     try {
         const user = req.user!
-        const extension = getExtension(file.originalname)
+
+        // M-1: never store client bytes as-is. Re-encoding through sharp
+        // validates the file really is an image (not just a trusted extension/
+        // MIME), strips EXIF — including GPS coordinates that would otherwise be
+        // publicly downloadable from this bucket — applies orientation, bounds
+        // the dimensions, and normalises the output to WebP.
+        let processedBuffer: Buffer
+        try {
+            processedBuffer = await sharp(file.buffer)
+                .rotate()
+                .resize(AVATAR_DIMENSION, AVATAR_DIMENSION, { fit: "cover" })
+                .webp({ quality: 82 })
+                .toBuffer()
+        } catch (imageError) {
+            console.error("Profile image processing error:", imageError)
+            return authError(res, 400, "VALIDATION_ERROR", "The uploaded file is not a valid image", {
+                image: "Upload a valid jpg, png or webp image",
+            })
+        }
+
         const timestamp = Date.now()
-        const storagePath = `${user.id}/${timestamp}.${extension}`
+        const storagePath = `${user.id}/${timestamp}.webp`
 
         // Capture existing files BEFORE uploading the new one
         const { data: existingFiles, error: listError } = await supabaseAdmin.storage
@@ -72,8 +94,8 @@ export const UploadProfileImage = async (req: Request, res: Response) => {
 
         const { error: uploadError } = await supabaseAdmin.storage
             .from(AVATAR_BUCKET)
-            .upload(storagePath, file.buffer, {
-                contentType: file.mimetype,
+            .upload(storagePath, processedBuffer, {
+                contentType: "image/webp",
                 upsert: true,
             })
 

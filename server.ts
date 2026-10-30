@@ -261,6 +261,11 @@ if (process.env.NODE_ENV === "production") {
     app.use("/api/signup", authLimiter)
     app.use("/api/forgot-password", authLimiter)
     app.use("/api/reset-password", authLimiter)
+    // Audit H-4: these auth routes were previously unthrottled — Google token
+    // replay, refresh abuse and the change-password old-password oracle.
+    app.use("/api/auth/google", authLimiter)
+    app.use("/api/refresh-token", authLimiter)
+    app.use("/api/change-password", authLimiter)
     app.use(express.json({ limit: "10kb" }))
     app.use(express.urlencoded({ extended: true, limit: "10kb" }))
 } else {
@@ -564,7 +569,12 @@ const options = {
 
 const swaggerSpec = swaggerJsdoc(options)
 
-app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+// Audit M-2: the interactive docs map the entire attack surface, so they are
+// not exposed in production. Serve them only outside production (put them
+// behind basic auth if they are ever needed on a live host).
+if (process.env.NODE_ENV !== "production") {
+    app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+}
 
 app.get("/health", Health)
 
@@ -632,6 +642,43 @@ const startServer = async () => {
 
         throw error
     })
+
+    // Graceful shutdown: let in-flight requests and audio streams finish before
+    // the process exits on a PM2 reload / container stop, instead of cutting
+    // them mid-response (DevOps §12).
+    let shuttingDown = false
+    const shutdown = (signal: NodeJS.Signals) => {
+        if (shuttingDown) return
+        shuttingDown = true
+        logger.info({ signal }, "Shutting down, draining connections")
+        const forced = setTimeout(() => {
+            logger.fatal("Forced shutdown after timeout")
+            process.exit(1)
+        }, 10_000)
+        forced.unref()
+        server.close((error) => {
+            if (error) {
+                logger.error({ err: error }, "Error during server close")
+                process.exit(1)
+            }
+            logger.info("Server closed cleanly")
+            process.exit(0)
+        })
+    }
+    process.on("SIGTERM", () => shutdown("SIGTERM"))
+    process.on("SIGINT", () => shutdown("SIGINT"))
 }
+
+// Last-resort visibility: a crash or a dropped promise must be logged (and sent
+// to Sentry) rather than dying silently (DevOps §12).
+process.on("unhandledRejection", (reason) => {
+    logger.error({ err: reason }, "Unhandled promise rejection")
+    Sentry.captureException(reason)
+})
+process.on("uncaughtException", (error) => {
+    logger.fatal({ err: error }, "Uncaught exception")
+    Sentry.captureException(error)
+    process.exit(1)
+})
 
 startServer()

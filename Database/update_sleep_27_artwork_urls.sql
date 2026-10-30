@@ -1,6 +1,6 @@
 -- Passage: set artwork_url for the 27 Sleep soundscapes inserted via Passage_Insert_27_Sleep_Soundscapes.sql.
 -- Images were generated, corrected to 1254x1254 WebP, and are already deployed at:
--- public/passage_soundscape_images_webp/ -> served as https://thehappyapp.co.uk/passage_soundscape_images_webp/<file>
+-- public/passage_soundscape_images_webp/ -> served as https://passagesounds.app/passage_soundscape_images_webp/<file>
 -- Safe to re-run: matches by catalogue_ref and always sets the same value.
 
 begin;
@@ -9,33 +9,33 @@ update public.soundscapes as s
 set artwork_url = v.artwork_url
 from (
   values
-    ('P-S009', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S009-ceiling-fan.webp'),
-    ('P-S010', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S010-air-conditioner.webp'),
-    ('P-S015', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S015-rain-on-a-paris-bedroom-window.webp'),
-    ('P-S016', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S016-rain-on-a-canvas-tent.webp'),
-    ('P-S017', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S017-summer-crickets-in-tuscany.webp'),
-    ('P-S019', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S019-distant-frogs.webp'),
-    ('P-S023', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S023-beach-at-night-in-the-maldives.webp'),
-    ('P-S024', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S024-pebble-beach-waves.webp'),
-    ('P-S025', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S025-canadian-lake-waves.webp'),
-    ('P-S028', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S028-stream-in-the-scottish-highlands.webp'),
-    ('P-S029', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S029-slow-river-at-night.webp'),
-    ('P-S030', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S030-distant-waterfall.webp'),
-    ('P-S033', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S033-alpine-stream-beneath-the-snow.webp'),
-    ('P-S042', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S042-underwater-at-the-great-barrier-reef.webp'),
-    ('P-S046', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S046-waves-in-a-portuguese-sea-cave.webp'),
-    ('P-S047', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S047-scuba-dive-at-the-great-barrier-reef.webp'),
-    ('P-S048', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S048-brown-noise.webp'),
-    ('P-S050', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S050-white-noise.webp'),
-    ('P-S051', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S051-box-fan.webp'),
-    ('P-S052', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S052-tibetan-singing-bowls.webp'),
-    ('P-S053', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S053-gentle-rain.webp'),
-    ('P-S054', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S054-rain-on-a-tin-roof.webp'),
-    ('P-S055', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S055-distant-rolling-thunder.webp'),
-    ('P-S056', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S056-blizzard-outside-an-alpine-cabin.webp'),
-    ('P-S057', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S057-nighttime-forest.webp'),
-    ('P-S058', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S058-autumn-wind.webp'),
-    ('P-S059', 'https://thehappyapp.co.uk/passage_soundscape_images_webp/P-S059-amazon-jungle-at-night.webp')
+    ('P-S009', 'https://passagesounds.app/passage_soundscape_images_webp/P-S009-ceiling-fan.webp'),
+    ('P-S010', 'https://passagesounds.app/passage_soundscape_images_webp/P-S010-air-conditioner.webp'),
+    ('P-S015', 'https://passagesounds.app/passage_soundscape_images_webp/P-S015-rain-on-a-paris-bedroom-window.webp'),
+    ('P-S016', 'https://passagesounds.app/passage_soundscape_images_webp/P-S016-rain-on-a-canvas-tent.webp'),
+    ('P-S017', 'https://passagesounds.app/passage_soundscape_images_webp/P-S017-summer-crickets-in-tuscany.webp'),
+    ('P-S019', 'https://passagesounds.app/passage_soundscape_images_webp/P-S019-distant-frogs.webp'),
+    ('P-S023', 'https://passagesounds.app/passage_soundscape_images_webp/P-S023-beach-at-night-in-the-maldives.webp'),
+    ('P-S024', 'https://passagesounds.app/passage_soundscape_images_webp/P-S024-pebble-beach-waves.webp'),
+    ('P-S025', 'https://passagesounds.app/passage_soundscape_images_webp/P-S025-canadian-lake-waves.webp'),
+    ('P-S028', 'https://passagesounds.app/passage_soundscape_images_webp/P-S028-stream-in-the-scottish-highlands.webp'),
+    ('P-S029', 'https://passagesounds.app/passage_soundscape_images_webp/P-S029-slow-river-at-night.webp'),
+    ('P-S030', 'https://passagesounds.app/passage_soundscape_images_webp/P-S030-distant-waterfall.webp'),
+    ('P-S033', 'https://passagesounds.app/passage_soundscape_images_webp/P-S033-alpine-stream-beneath-the-snow.webp'),
+    ('P-S042', 'https://passagesounds.app/passage_soundscape_images_webp/P-S042-underwater-at-the-great-barrier-reef.webp'),
+    ('P-S046', 'https://passagesounds.app/passage_soundscape_images_webp/P-S046-waves-in-a-portuguese-sea-cave.webp'),
+    ('P-S047', 'https://passagesounds.app/passage_soundscape_images_webp/P-S047-scuba-dive-at-the-great-barrier-reef.webp'),
+    ('P-S048', 'https://passagesounds.app/passage_soundscape_images_webp/P-S048-brown-noise.webp'),
+    ('P-S050', 'https://passagesounds.app/passage_soundscape_images_webp/P-S050-white-noise.webp'),
+    ('P-S051', 'https://passagesounds.app/passage_soundscape_images_webp/P-S051-box-fan.webp'),
+    ('P-S052', 'https://passagesounds.app/passage_soundscape_images_webp/P-S052-tibetan-singing-bowls.webp'),
+    ('P-S053', 'https://passagesounds.app/passage_soundscape_images_webp/P-S053-gentle-rain.webp'),
+    ('P-S054', 'https://passagesounds.app/passage_soundscape_images_webp/P-S054-rain-on-a-tin-roof.webp'),
+    ('P-S055', 'https://passagesounds.app/passage_soundscape_images_webp/P-S055-distant-rolling-thunder.webp'),
+    ('P-S056', 'https://passagesounds.app/passage_soundscape_images_webp/P-S056-blizzard-outside-an-alpine-cabin.webp'),
+    ('P-S057', 'https://passagesounds.app/passage_soundscape_images_webp/P-S057-nighttime-forest.webp'),
+    ('P-S058', 'https://passagesounds.app/passage_soundscape_images_webp/P-S058-autumn-wind.webp'),
+    ('P-S059', 'https://passagesounds.app/passage_soundscape_images_webp/P-S059-amazon-jungle-at-night.webp')
 ) as v (catalogue_ref, artwork_url)
 where s.catalogue_ref = v.catalogue_ref;
 

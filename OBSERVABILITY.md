@@ -25,4 +25,4 @@ uses the same endpoint to automatically leave its service-unavailable screen aft
 
 Pino never records request or response bodies and redacts authentication headers and tokens.
 `/health` probes are excluded from access logs. Product analytics only contains operational
-dimensions used by the admin monitoring page—never check-in reflections or health answers.
+dimensions used by the admin monitoring page—never free-form profile or support content.

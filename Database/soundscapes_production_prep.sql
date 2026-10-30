@@ -137,7 +137,7 @@ alter type public.detail_level add value if not exists 'gentle';
 --
 -- science_label / science_note: leave NULL for now. The spreadsheet's
 -- "Concept Evidence Level" and "Concept provenance" fields are a different
--- concept (creative/production provenance, not wellbeing-claim strength)
+-- concept (creative and production provenance)
 -- and were intentionally NOT mapped onto science_label this round.
 -- science_label's CHECK constraint permits NULL (only rejects a
 -- non-matching non-null value), so this is safe.

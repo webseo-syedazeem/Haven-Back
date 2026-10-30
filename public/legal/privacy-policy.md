@@ -1,7 +1,7 @@
 # Privacy Policy for Passage
 
 **Effective Date:** 5 September 2026
-**Last Updated:** 16 October 2026
+**Last Updated:** 30 October 2026
 
 ## 1. Introduction
 
@@ -9,9 +9,9 @@ This Privacy Policy explains how **HAPPY CHEEKS LTD** (company number 15146182),
 
 Passage is a soundscape app for sleep, relaxation and focus. It offers a catalogue of soundscapes, playlists, a sleep timer, and preferences that shape what is recommended to you.
 
-**Passage is free to use.** There is no subscription, no in-app purchase, no trial period and no premium tier. We never ask you for payment details, we do not use a payment processor, and we hold no billing or payment information of any kind.
+Passage does not collect or process payment information.
 
-**Passage supports rest, relaxation and focus. It does not diagnose, treat, cure, or prevent any medical condition, and it is not a medical device.** If you feel unsafe or are in crisis, please contact your local emergency services or a crisis support line.
+Passage provides pre-recorded soundscapes for general listening and does not provide healthcare services or professional advice.
 
 By using the App, you agree to the practices described in this Privacy Policy. If you do not agree, please do not use the App.
 
@@ -36,7 +36,7 @@ We collect only what is needed to run the App for you.
 - **Play history and player state** — what you have played, when, and where you paused, so you can pick up where you left off.
 - **Sound preferences** — preferred environments and sounds, sounds you have asked us to avoid, detail preference, and typical session length.
 - **Playback and notification settings** — including your chosen wind-down reminder time, so your settings follow you to a new device.
-- **Onboarding answers** — your goals, starting mode, and situation, if you provide them during setup.
+- **Onboarding answers** — your chosen mood and listening preferences, if you provide them during setup.
 
 ### 3.3 Push notification tokens
 
@@ -73,13 +73,13 @@ We use your information to:
 - maintain, secure and troubleshoot the App;
 - comply with our legal obligations.
 
-We do not use your information to diagnose, treat, or make medical claims, and we do not sell it.
+We use your information only to operate, secure and improve the soundscape service described in this policy. We do not sell it.
 
 ## 5. Legal Bases for Processing (EEA, UK, and Switzerland)
 
 If you are located in the European Economic Area, the United Kingdom, or Switzerland, we rely on the following legal bases under the GDPR and UK GDPR:
 
-- **Performance of a contract** — to provide the App and its features to you. Passage is free, so this contract involves no payment.
+- **Performance of a contract** — to provide the App and its features to you.
 - **Consent** — for optional notifications and for optional usage analytics. You may withdraw either at any time in the App.
 - **Legitimate interests** — to maintain, secure and improve the App, where those interests are not overridden by your rights.
 - **Legal obligation** — where processing is required by law.
@@ -94,8 +94,6 @@ If you are located in the European Economic Area, the United Kingdom, or Switzer
 - **Legal and safety reasons:** where required by law or legal process, or to protect the rights, safety and security of our users, the public, or Passage.
 - **Business transfers:** in connection with a merger, acquisition, financing, or sale of assets, where your information may transfer subject to this policy.
 - **With your consent:** in any other case, with your explicit permission.
-
-**There are no payment processors in this list, because Passage is free and processes no payments.**
 
 ## 7. Third-Party Services
 
@@ -178,4 +176,4 @@ Address: **Apartment 37 Ellis Court, Textile Street, Dewsbury, England, WF13 2EX
 
 ---
 
-*Passage is a free soundscape app for sleep, relaxation and focus. It does not diagnose, treat, or prevent any medical condition. If you feel unsafe or in crisis, contact your local emergency services or a crisis support line.*
+*Passage is a soundscape app for Focus, Sleep and Relax.*

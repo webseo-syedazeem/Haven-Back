@@ -1,9 +1,9 @@
 -- Auto-set updated_at = now() on every UPDATE for all public tables that have
 -- the column. Re-runnable: drops any prior trigger of the same name first.
 --
--- Live introspection (2026-08-13) found updated_at on these 11 tables:
+-- Active Passage tables with updated_at:
 --   collections, remote_config, soundscapes, support_requests,
---   user_download_settings, user_downloads, user_notification_settings,
+--   user_notification_settings,
 --   user_playback_settings, user_playlists, user_sound_preferences, users
 --
 -- user_subscriptions does not exist in the live schema and is not included.
@@ -47,12 +47,6 @@ before update on public.user_playlists
 for each row
 execute function public.set_updated_at();
 
-drop trigger if exists set_updated_at_on_user_downloads on public.user_downloads;
-create trigger set_updated_at_on_user_downloads
-before update on public.user_downloads
-for each row
-execute function public.set_updated_at();
-
 drop trigger if exists set_updated_at_on_user_sound_preferences on public.user_sound_preferences;
 create trigger set_updated_at_on_user_sound_preferences
 before update on public.user_sound_preferences
@@ -62,12 +56,6 @@ execute function public.set_updated_at();
 drop trigger if exists set_updated_at_on_user_playback_settings on public.user_playback_settings;
 create trigger set_updated_at_on_user_playback_settings
 before update on public.user_playback_settings
-for each row
-execute function public.set_updated_at();
-
-drop trigger if exists set_updated_at_on_user_download_settings on public.user_download_settings;
-create trigger set_updated_at_on_user_download_settings
-before update on public.user_download_settings
 for each row
 execute function public.set_updated_at();
 

@@ -8,9 +8,9 @@ POST /api/account/import-guest-data.
 
 ## Preview-only third screen
 
-The "A place for the state you need" screen is now informational. Its Focus
-deeply, Feel calmer, and Sleep easier tiles are decorative, are not selectable,
-and do not produce a request or database field.
+The "Three moods. One world of soundscapes." screen is informational. Its
+Focus, Relax, and Sleep tiles are decorative, are not selectable, and do not
+produce a request or database field.
 
 ## Mode-scoped fields
 

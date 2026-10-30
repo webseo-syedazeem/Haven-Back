@@ -311,7 +311,7 @@ const streamAudioFile = async (
         const fileSize = stats.size
         const range = req.headers.range
 
-        // Premium Streaming Headers Configured for iOS/Android AVPlayer
+        // Audio streaming headers configured for iOS/Android AVPlayer
         const commonHeaders = {
             "Accept-Ranges": "bytes",
             "Content-Type": AUDIO_CONTENT_TYPES[extension] || "application/octet-stream",

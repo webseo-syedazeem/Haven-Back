@@ -22,4 +22,4 @@ create index if not exists idx_analytics_events_session_created
     on public.analytics_events (session_id, created_at desc);
 
 comment on table public.analytics_events is
-    'Privacy-minimised product analytics. Never store check-in reflections, health answers, auth tokens, or free-form wellbeing text in event_data.';
+    'Privacy-minimised product analytics. Never store sensitive personal responses, auth tokens, or unrestricted free-form text in event_data.';

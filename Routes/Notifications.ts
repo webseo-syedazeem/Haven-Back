@@ -150,8 +150,8 @@ NotificationsRoutes.delete("/notifications/device/:token", AuthMiddleware, Unreg
  *       - Notifications
  *     summary: Notify users who opted into new-collection alerts and have registered devices
  *     description: >
- *       Writes a notifications_log row per eligible user. If FCM_SERVER_KEY is not
- *       configured, rows are left status=queued instead of failing the request.
+ *       Writes a notifications_log row per eligible user and sends valid Expo push
+ *       tokens through Expo Push Service, which routes them to APNs or FCM.
  *     security:
  *       - bearerAuth: []
  *     requestBody:

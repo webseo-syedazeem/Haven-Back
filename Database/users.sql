@@ -55,7 +55,7 @@ begin
     )
     on conflict (auth_user_id)
     do update set
-        name = excluded.name,
+        name = coalesce(nullif(public.users.name, ''), excluded.name),
         email = excluded.email,
         is_verified = excluded.is_verified,
         last_sign_in_at = excluded.last_sign_in_at;

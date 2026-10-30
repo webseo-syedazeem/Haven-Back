@@ -79,7 +79,7 @@ type ResolvedSender = {
 
 const resolveSender = async (req: Request): Promise<ResolvedSender> => {
     if (!req.user?.id) {
-        return { userId: null, consented: true }
+        return { userId: null, consented: getRequestBody(req).consented === true }
     }
 
     try {
@@ -91,11 +91,11 @@ const resolveSender = async (req: Request): Promise<ResolvedSender> => {
 
         if (error) {
             console.error("Analytics optional user lookup error:", error)
-            return { userId: null, consented: true }
+            return { userId: null, consented: false }
         }
 
         if (!userProfile) {
-            return { userId: null, consented: true }
+            return { userId: null, consented: false }
         }
 
         return {
@@ -104,7 +104,7 @@ const resolveSender = async (req: Request): Promise<ResolvedSender> => {
         }
     } catch (err) {
         console.error("Analytics optional user lookup failed:", err)
-        return { userId: null, consented: true }
+        return { userId: null, consented: false }
     }
 }
 

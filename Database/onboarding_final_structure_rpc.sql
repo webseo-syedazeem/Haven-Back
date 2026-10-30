@@ -219,6 +219,11 @@ begin
 end;
 $fn$;
 
+-- This SECURITY DEFINER RPC is a backend-only operation. Never expose it to
+-- PostgREST's public client roles.
+revoke all on function public.save_user_onboarding_completion(bigint,text,text[],text[],integer,text,text[],text,timestamptz,jsonb) from public, anon, authenticated;
+grant execute on function public.save_user_onboarding_completion(bigint,text,text[],text[],integer,text,text[],text,timestamptz,jsonb) to service_role;
+
 -- The function no longer depends on the removed field, so the destructive DDL is safe here.
 alter table public.user_onboarding drop column if exists user_goals;
 

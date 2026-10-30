@@ -49,9 +49,10 @@ test("H-2: logout revokes the session with the admin API", () => {
 
 test("H-4: formerly-unthrottled auth routes are rate limited", () => {
     const server = read("server.ts")
-    for (const route of ["/api/auth/google", "/api/refresh-token", "/api/change-password"]) {
+    for (const route of ["/api/auth/google", "/api/change-password"]) {
         assert.match(server, new RegExp(`app\\.use\\("${route.replace(/\//g, "\\/")}",\\s*authLimiter\\)`))
     }
+    assert.match(server, /app\.use\("\/api\/refresh-token",\s*refreshLimiter\)/)
 })
 
 test("M-2: swagger docs are not mounted unconditionally in production", () => {

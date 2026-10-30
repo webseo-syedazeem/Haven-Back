@@ -516,7 +516,7 @@ and `POST /api/admin/soundscapes` already validate for and expect (`Controller/A
 #### `POST /api/admin/notifications/new-collection-alert`
 - **Auth:** Admin (Bearer + `is_admin = true`).
 - **Body:** `{ "collection_id": "<a real collection id>", "title": "New: Rainy Nights", "body": "A new collection just landed." }`
-- **Success response (200):** `{ "success": true, "data": { "users_notified": 1, "push_configured": false, "queued": 1, "sent": 0, "failed": 0 } }` (writes one `notifications_log` row per user who has `new_collection_alerts = true` **and** at least one registered device; if `FCM_SERVER_KEY` isn't configured, rows are left `status = "queued"` instead of failing)
+- **Success response (200):** returns users notified, queued, sent and failed counts. The backend sends valid Expo push tokens through Expo Push Service, which routes them to APNs/FCM.
 - **Errors:** `400` missing `collection_id`/`title`/`body`, or unknown `collection_id`; `401` no token; `403` not admin; `500` server error.
 - **Verify:** the collection lookup here does **not** require `is_published` — an unpublished draft collection id still passes.
 

@@ -50,7 +50,7 @@ When you contact support, report a problem with a soundscape, or request a sound
 
 Passage does **not** collect usage analytics unless you switch them on. The setting is off by default and lives in the App under Privacy & Data.
 
-If you turn it on, we record anonymous product events — such as which features and soundscapes are used — to help us improve the catalogue and the App. Turning it off stops collection immediately, and our servers reject analytics events for accounts where the setting is off. We never record the content of your support messages, and we do not track you across other apps or websites. Passage uses no advertising or third-party tracking SDKs.
+If you turn it on, we record product events — such as which features and soundscapes are used — linked to your Passage account identifier so we can understand sessions and improve the App. Turning it off stops collection immediately, and our servers reject analytics events where consent is absent. We never record support-message content, and we do not use analytics for advertising or track you across other apps or websites.
 
 ### 3.6 Device and technical data
 
@@ -89,8 +89,10 @@ If you are located in the European Economic Area, the United Kingdom, or Switzer
 **We do not sell your personal information.** We share it only in the limited circumstances below:
 
 - **Service providers:** **Supabase**, which provides our authentication, database and file storage (including your profile picture), and our cloud backend infrastructure, both processing information on our behalf.
-- **Push delivery:** **Firebase Cloud Messaging** (Google), used to deliver push notifications — only if you have turned a notification on, and only for as long as it is on.
-- **Sign-in:** **Google**, if you choose to sign in with your Google account.
+- **Push delivery:** **Expo Push Service** and **Apple Push Notification service (APNs)**, used only when you enable notifications.
+- **Sign-in:** **Google** or **Apple**, if you choose the corresponding sign-in option.
+- **Analytics:** **PostHog**, only when you enable usage analytics.
+- **Diagnostics:** **Sentry**, for crash, error and performance diagnostics configured to avoid direct personal information.
 - **Legal and safety reasons:** where required by law or legal process, or to protect the rights, safety and security of our users, the public, or Passage.
 - **Business transfers:** in connection with a merger, acquisition, financing, or sale of assets, where your information may transfer subject to this policy.
 - **With your consent:** in any other case, with your explicit permission.
@@ -100,8 +102,10 @@ If you are located in the European Economic Area, the United Kingdom, or Switzer
 Passage relies on the following third-party services:
 
 - **Supabase** — authentication, database, and file storage.
-- **Google** — sign-in (OAuth), if you use it.
-- **Firebase Cloud Messaging** — push notification delivery, if you enable notifications.
+- **Google and Apple** — sign-in, if you use either option.
+- **Expo Push Service and APNs** — push notification delivery, if you enable notifications.
+- **PostHog** — optional product analytics, if you enable it.
+- **Sentry** — crash, error and performance diagnostics.
 
 We encourage you to review the privacy policies of any third-party service you connect.
 
@@ -134,7 +138,7 @@ You have control over your information. Depending on your location, you may have
 
 - **access** the personal information we hold about you;
 - **correct** inaccurate information — you can update your name, email, password and profile picture in the App under Account;
-- **export your data** — the App offers "Export my data" under Privacy & Data, which produces a file containing everything we hold for you;
+- **request access or a portable copy** of your data by contacting us at the address below;
 - **delete your account and data** — available in the App under Account, and under Privacy & Data, subject to the retention limits described in Section 9;
 - **withdraw consent** for notifications or usage analytics at any time in the App;
 - **object to or restrict** certain processing;

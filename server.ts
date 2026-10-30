@@ -6,7 +6,7 @@ import cors from "cors"
 import helmet from "helmet"
 import { pinoHttp } from "pino-http"
 import { randomUUID } from "crypto"
-import rateLimit from "express-rate-limit"
+import rateLimit, { ipKeyGenerator } from "express-rate-limit"
 import fs from "fs"
 import path from "path"
 import swaggerUi from "swagger-ui-express"
@@ -39,7 +39,6 @@ const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000").spl
 const soundscapesPath = path.join(process.cwd(), "public", "soundscapes")
 const previewsPath = path.join(process.cwd(), "public", "previews")
 const privacyPolicyPath = path.join(process.cwd(), "public", "legal", "privacy-policy.md")
-const adminPanelPath = path.join(process.cwd(), "public", "admin", "index.html")
 
 // Files are read in bounded pieces, but this is only the server-side I/O buffer.
 // It must never cap an open-ended HTTP Range response from a media player.
@@ -231,8 +230,28 @@ const apiLimiter = rateLimit({
 
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 2000,
+    max: 20,
     message: { success: false, error: "Too many auth attempts, please try again later" },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+
+const authIdentityLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    keyGenerator: (req) => {
+        const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : ""
+        return email || ipKeyGenerator(req.ip || "")
+    },
+    message: { success: false, error: "Too many attempts for this account, please try again later" },
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+
+const refreshLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: { success: false, error: "Too many refresh attempts, please try again later" },
     standardHeaders: true,
     legacyHeaders: false,
 })
@@ -256,18 +275,22 @@ app.use(
 )
 
 if (process.env.NODE_ENV === "production") {
+    app.use(express.json({ limit: "10kb" }))
+    app.use(express.urlencoded({ extended: true, limit: "10kb" }))
     app.use("/api", apiLimiter)
     app.use("/api/signin", authLimiter)
+    app.use("/api/signin", authIdentityLimiter)
     app.use("/api/signup", authLimiter)
+    app.use("/api/signup", authIdentityLimiter)
     app.use("/api/forgot-password", authLimiter)
+    app.use("/api/forgot-password", authIdentityLimiter)
     app.use("/api/reset-password", authLimiter)
+    app.use("/api/reset-password", authIdentityLimiter)
     // Audit H-4: these auth routes were previously unthrottled — Google token
     // replay, refresh abuse and the change-password old-password oracle.
     app.use("/api/auth/google", authLimiter)
-    app.use("/api/refresh-token", authLimiter)
+    app.use("/api/refresh-token", refreshLimiter)
     app.use("/api/change-password", authLimiter)
-    app.use(express.json({ limit: "10kb" }))
-    app.use(express.urlencoded({ extended: true, limit: "10kb" }))
 } else {
     app.use(express.json())
     app.use(express.urlencoded({ extended: true }))
@@ -446,9 +469,7 @@ app.get("/privacy-policy.md", async (_req, res) => {
     }
 })
 
-app.get("/admin", (_req, res) => {
-    res.sendFile(adminPanelPath)
-})
+app.get("/admin", (_req, res) => res.status(410).json({ message: "Legacy admin removed. Use the Passage web admin." }))
 // REMOVED express.static to avoid routing middleware conflicts on "/soundscapes"
 
 app.use("/api", Authroutes)

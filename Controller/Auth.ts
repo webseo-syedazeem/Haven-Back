@@ -333,10 +333,11 @@ export const SyncGoogleProfile = async (req: Request, res: Response) => {
         const email = authUser.email || ""
         const name = String(metadata.full_name || metadata.name || email.split("@")[0])
         const profileImageUrl: string | null = metadata.avatar_url || metadata.picture || null
+        const authProvider = String(authUser.app_metadata?.provider || "")
 
         const { data: existing, error: existingError } = await supabaseAdmin
             .from("users")
-            .select("google_image_synced")
+            .select("name, google_image_synced")
             .eq("auth_user_id", authUser.id)
             .maybeSingle()
 
@@ -346,24 +347,26 @@ export const SyncGoogleProfile = async (req: Request, res: Response) => {
         }
 
         const alreadySynced = existing?.google_image_synced === true
+        const generatedFallbackName = email.split("@")[0]
         const payload: Record<string, any> = {
             auth_user_id: authUser.id,
             email,
-            name,
             is_verified: true,
             last_sign_in_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
         }
 
-        if (!alreadySynced) {
+        if (authProvider === "google" && !alreadySynced) {
             payload.profile_image_url = profileImageUrl
             payload.google_image_synced = true
         }
 
+        if (!existing?.name?.trim() || existing.name === generatedFallbackName) payload.name = name
+
         const { data: profile, error: profileError } = await supabaseAdmin
             .from("users")
             .upsert(payload, { onConflict: "auth_user_id" })
-            .select("*")
+            .select("id, auth_user_id, name, email, profile_image_url, is_verified, onboarding_completed, last_sign_in_at, created_at, updated_at")
             .single()
 
         if (profileError) {
@@ -888,7 +891,7 @@ export const CheckSession = async (req: Request, res: Response) => {
             success: true,
             data: {
                 valid: true,
-                user,
+                user: { id: user.id, email: user.email },
                 profile: userProfile,
             },
         })

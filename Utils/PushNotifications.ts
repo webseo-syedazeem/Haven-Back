@@ -1,66 +1,39 @@
-export type PushPayload = {
-    title: string
-    body: string
-    data?: Record<string, unknown>
-}
+export type PushPayload = { title: string; body: string; data?: Record<string, unknown> }
+export type PushResult = { configured: boolean; sent: string[]; failed: string[] }
 
-export type PushResult = {
-    configured: boolean
-    sent: string[]
-    failed: string[]
-}
+const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
+const isExpoToken = (token: string) => /^(ExponentPushToken|ExpoPushToken)\[[^\]]+\]$/.test(token)
 
-// Actual provider call, isolated in its own function so it is easy to swap for
-// APNs/Expo or a real FCM v1 integration once the user supplies credentials.
-// Uses the legacy FCM HTTP API (server key auth) as a minimal default.
-const sendViaFcm = async (tokens: string[], payload: PushPayload, serverKey: string): Promise<PushResult> => {
+const sendViaExpo = async (tokens: string[], payload: PushPayload): Promise<PushResult> => {
     const sent: string[] = []
     const failed: string[] = []
-
-    for (const token of tokens) {
+    for (let offset = 0; offset < tokens.length; offset += 100) {
+        const batch = tokens.slice(offset, offset + 100)
         try {
-            const response = await fetch("https://fcm.googleapis.com/fcm/send", {
+            const response = await fetch(EXPO_PUSH_URL, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `key=${serverKey}`,
-                },
-                body: JSON.stringify({
-                    to: token,
-                    notification: { title: payload.title, body: payload.body },
-                    data: payload.data || {},
-                }),
+                headers: { Accept: "application/json", "Accept-Encoding": "gzip, deflate", "Content-Type": "application/json" },
+                body: JSON.stringify(batch.map((to) => ({ to, sound: "default", title: payload.title, body: payload.body, data: payload.data || {} }))),
             })
-
-            if (response.ok) {
-                sent.push(token)
-            } else {
-                console.error(`[Push] FCM send failed for token ending ${token.slice(-6)}: ${response.status}`)
-                failed.push(token)
-            }
-        } catch (err) {
-            console.error("[Push] FCM send error:", err)
-            failed.push(token)
+            if (!response.ok) throw new Error(`Expo push HTTP ${response.status}`)
+            const result = await response.json() as { data?: Array<{ status?: string }> }
+            batch.forEach((token, index) => {
+                if (result.data?.[index]?.status === "ok") sent.push(token)
+                else failed.push(token)
+            })
+        } catch (error) {
+            console.error("[Push] Expo send error:", error)
+            failed.push(...batch)
         }
     }
-
     return { configured: true, sent, failed }
 }
 
-// Provider credentials (FCM_SERVER_KEY) belong to the user, not this codebase.
-// Without them we degrade gracefully: callers keep their notifications_log rows
-// "queued" instead of crashing or silently dropping them.
+/** Expo tokens are sent to Expo, which routes each notification to APNs/FCM. */
 export const sendPush = async (tokens: string[], payload: PushPayload): Promise<PushResult> => {
-    const fcmServerKey = process.env.FCM_SERVER_KEY
-
-    if (tokens.length === 0) {
-        return { configured: Boolean(fcmServerKey), sent: [], failed: [] }
-    }
-
-    if (!fcmServerKey) {
-        console.log("[Push] FCM_SERVER_KEY not configured — leaving notifications queued")
-        return { configured: false, sent: [], failed: [] }
-    }
-
-    return sendViaFcm(tokens, payload, fcmServerKey)
+    const valid = tokens.filter(isExpoToken)
+    const invalid = tokens.filter((token) => !isExpoToken(token))
+    if (!valid.length) return { configured: true, sent: [], failed: invalid }
+    const result = await sendViaExpo(valid, payload)
+    return { ...result, failed: [...invalid, ...result.failed] }
 }

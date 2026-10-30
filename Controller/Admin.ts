@@ -1324,6 +1324,29 @@ const isJsonValue = (value: unknown) => {
     }
 }
 
+const TESTIMONIAL_MODES = new Set(["focus", "sleep", "relax"])
+
+const validateTestimonials = (value: unknown): string | null => {
+    if (!isObject(value) || !Array.isArray(value.testimonials)) {
+        return "home_testimonials value must be an object with a testimonials array"
+    }
+    if (value.testimonials.length > 12) return "A maximum of 12 testimonials is allowed"
+    for (const [index, raw] of value.testimonials.entries()) {
+        if (!isObject(raw)) return `Testimonial ${index + 1} must be an object`
+        for (const field of ["id", "mode", "quote", "name"] as const) {
+            if (typeof raw[field] !== "string" || !raw[field].trim()) {
+                return `Testimonial ${index + 1} requires ${field}`
+            }
+        }
+        if (!TESTIMONIAL_MODES.has(String(raw.mode))) return `Testimonial ${index + 1} mode must be focus, sleep, or relax`
+        if (String(raw.quote).trim().length > 280 || String(raw.name).trim().length > 80) return `Testimonial ${index + 1} exceeds the allowed text length`
+        if (raw.role != null && (typeof raw.role !== "string" || raw.role.trim().length > 100)) return `Testimonial ${index + 1} role must be text up to 100 characters`
+        if (raw.avatar_url != null && raw.avatar_url !== "" && (typeof raw.avatar_url !== "string" || !/^https:\/\//i.test(raw.avatar_url))) return `Testimonial ${index + 1} avatar_url must be an HTTPS URL`
+        if (raw.consent_confirmed !== true) return `Testimonial ${index + 1} must have consent_confirmed set to true`
+    }
+    return null
+}
+
 export const GetAdminRemoteConfig = async (_req: Request, res: Response) => {
     try {
         const { data: entries, error } = await supabaseAdmin
@@ -1393,6 +1416,11 @@ export const UpsertAdminRemoteConfig = async (req: Request, res: Response) => {
 
     if (!isJsonValue(req.body.value)) {
         return res.status(400).json({ success: false, error: "value must be JSON-serializable" })
+    }
+
+    if (key === "home_testimonials") {
+        const validationError = validateTestimonials(req.body.value)
+        if (validationError) return res.status(400).json({ success: false, error: validationError })
     }
 
     if (

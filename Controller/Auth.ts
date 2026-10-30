@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import type { Request, Response } from "express"
 import { supabase, supabaseAdmin, supabaseUrlValue, supabaseAnonKeyValue } from "../Config/Dbconnection.ts"
 import { authError, emailIssue, nameIssue, passwordIssue, tokenIssue } from "../Utils/AuthValidation.ts"
+import { exchangeAppleAuthCode, isAppleRevocationConfigured, revokeAppleToken } from "../Utils/AppleAuth.ts"
 
 type AuthServiceError = {
     code?: string
@@ -769,13 +770,61 @@ export const Logout = async (req: Request, res: Response) => {
     }
 }
 
+/**
+ * Registers the Apple refresh token for an already-authenticated Apple user so
+ * the account-deletion flow can revoke it later (App Store 5.1.1(v)). The client
+ * sends the one-time `authorizationCode` captured during native Apple sign-in,
+ * right after the Supabase session is established. This is a safe no-op (still
+ * 200) when Apple credentials are not configured or the code cannot be
+ * exchanged, so the sign-in path never has to special-case it.
+ */
+export const RegisterAppleRevocation = async (req: Request, res: Response) => {
+    const { authorization_code } = req.body || {}
+    const code = String(authorization_code || "").trim()
+
+    if (!code) {
+        return authError(res, 400, "VALIDATION_ERROR", "authorization_code is required", {
+            authorization_code: "authorization_code is required",
+        })
+    }
+
+    if (!isAppleRevocationConfigured()) {
+        return res.status(200).json({ success: true, data: { configured: false } })
+    }
+
+    try {
+        const user = req.user!
+        const refreshToken = await exchangeAppleAuthCode(code)
+
+        if (!refreshToken) {
+            // The code may be expired/reused, or Apple refused it — not fatal to sign-in.
+            return res.status(200).json({ success: true, data: { configured: true, stored: false } })
+        }
+
+        const { error: updateError } = await supabaseAdmin
+            .from("users")
+            .update({ apple_refresh_token: refreshToken, updated_at: new Date().toISOString() })
+            .eq("auth_user_id", user.id)
+
+        if (updateError) {
+            console.error("Store Apple refresh token error:", updateError)
+            return authError(res, 500, "DATABASE_ERROR", "Failed to store Apple revocation token")
+        }
+
+        return res.status(200).json({ success: true, data: { configured: true, stored: true } })
+    } catch (err) {
+        console.error("Error registering Apple revocation:", err)
+        return authError(res, 500, "INTERNAL_SERVER_ERROR", "Internal server error")
+    }
+}
+
 export const DeleteAccount = async (req: Request, res: Response) => {
     try {
         const user = req.user!
 
         const { data: userProfile, error: profileLookupError } = await supabaseAdmin
             .from("users")
-            .select("id")
+            .select("id, apple_refresh_token")
             .eq("auth_user_id", user.id)
             .maybeSingle()
 
@@ -850,6 +899,21 @@ export const DeleteAccount = async (req: Request, res: Response) => {
         if (profileError) {
             console.error("Delete user profile error:", profileError)
             return authError(res, 500, "DATABASE_ERROR", "Failed to delete user profile")
+        }
+
+        // App Store 5.1.1(v): revoke the Apple token for Sign-in-with-Apple users
+        // before removing the account. Best-effort — a failed revoke must never
+        // leave the user's data undeleted.
+        const appleRefreshToken = (userProfile as { apple_refresh_token?: string | null } | null)?.apple_refresh_token
+        if (appleRefreshToken && isAppleRevocationConfigured()) {
+            try {
+                const revoked = await revokeAppleToken(appleRefreshToken)
+                if (!revoked) {
+                    console.warn("[Auth] Apple token revocation did not succeed during account deletion")
+                }
+            } catch (revokeErr) {
+                console.error("Apple token revocation error during account deletion:", revokeErr)
+            }
         }
 
         const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id)

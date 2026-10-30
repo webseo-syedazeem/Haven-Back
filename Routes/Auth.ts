@@ -13,6 +13,7 @@ import {
     RemoveProfileImage,
     Logout,
     DeleteAccount,
+    RegisterAppleRevocation,
     CheckSession,
     GetCurrentUser,
 } from "../Controller/Auth.ts"
@@ -475,6 +476,39 @@ AuthRoutes.post("/logout", AuthMiddleware, Logout)
  *         description: Failed to delete account
  */
 AuthRoutes.delete("/delete-account", AuthMiddleware, DeleteAccount)
+
+/**
+ * @swagger
+ * /api/auth/apple/register-revocation:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Register the Apple refresh token for later revocation (App Store 5.1.1(v))
+ *     description: Called after a native Sign in with Apple. Exchanges the one-time authorization code for a refresh token and stores it so account deletion can revoke it. No-op when Apple is not configured.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               authorization_code:
+ *                 type: string
+ *             required:
+ *               - authorization_code
+ *     responses:
+ *       '200':
+ *         description: Registration processed (stored, or a safe no-op)
+ *       '400':
+ *         description: Missing authorization_code
+ *       '401':
+ *         description: Invalid or missing session
+ *       '500':
+ *         description: Server error
+ */
+AuthRoutes.post("/auth/apple/register-revocation", AuthMiddleware, RegisterAppleRevocation)
 
 /**
  * @swagger

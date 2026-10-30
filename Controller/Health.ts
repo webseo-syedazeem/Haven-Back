@@ -23,9 +23,12 @@ export async function getHealthSnapshot(): Promise<HealthSnapshot> {
     let supabaseStatus: HealthSnapshot["checks"]["supabase"]
 
     try {
+        // A liveness probe only needs to prove the DB is reachable and the table
+        // is queryable, so fetch a single id rather than an exact COUNT (which
+        // scans the whole table and gets heavier as `users` grows, audit PERF-1).
         const { error } = await supabaseAdmin
             .from("users")
-            .select("id", { head: true, count: "exact" })
+            .select("id")
             .limit(1)
             .abortSignal(controller.signal)
         if (error) throw error

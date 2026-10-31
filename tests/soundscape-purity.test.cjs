@@ -16,17 +16,30 @@ test('Relax recommendations preserve the client-approved answer semantics', () =
 
 test('backend legal copy and onboarding contract reflect their separate scopes', () => {
   const privacy = read('public/legal/privacy-policy.md');
-  const contract = read('API_CONTRACT_ONBOARDING_GOALS.md');
+  // The onboarding goal/answer contract (personalisation inputs for soundscape
+  // recommendations) now lives inline in the route's OpenAPI docblock. The
+  // standalone API_CONTRACT_ONBOARDING_GOALS.md was retired, so this validates
+  // the live source of truth instead of a document that no longer exists
+  // (audit B-TEST-1).
   const routes = read('Routes/Onboarding.ts');
 
   assert.doesNotMatch(
     privacy,
     /subscription|premium tier|free trial|in-app purchase/i,
   );
-  assert.match(contract, /Manage daily stress/);
-  assert.match(contract, /Work/);
+
+  // Current Passage Relax onboarding goals + causes are present...
+  assert.match(routes, /Manage daily stress/);
   assert.match(routes, /Feel less anxious/);
+  assert.match(routes, /Work/);
   assert.match(routes, /Overthinking/);
+
+  // ...and the contract stays soundscape-only: no obsolete Halcyon/Haven health,
+  // mood, breathing, or check-in functionality is reintroduced here.
+  assert.doesNotMatch(
+    routes,
+    /mood tracking|breathing exercise|daily check-?in|google ?fit|apple ?health/i,
+  );
 });
 
 test('catalogue-label cleanup is transactional and soundscape-only after migration', () => {

@@ -19,7 +19,8 @@ const OnboardingRoutes = express.Router()
  *         DB defaults ('{}' for the arrays, null for the others):
  *         ALL MODES mode. FOCUS/SLEEP mode_breakers, mode_areas,
  *         target_minutes. RELAX main_goal, relax_causes, calming_moments.
- *         See API_CONTRACT_ONBOARDING_GOALS.md for the full per-mode option lists.
+ *         The full per-mode option lists are documented inline in the property
+ *         descriptions below (main_goal / relax_causes / calming_moments).
  *       required:
  *         - mode
  *       properties:

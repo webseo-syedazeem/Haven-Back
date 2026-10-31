@@ -292,10 +292,20 @@ export const GetLibrary = async (req: Request, res: Response) => {
             return { soundscapes: rows, result_count: rows.length }
         })
 
-        // Apply pagination to the cached results
+        // Paginate the cached, fully-ordered result set in memory (audit B-SCALE-1).
+        //
+        // This is deliberate, not an oversight. The live catalogue is ~100 rows,
+        // so the whole filtered set is cheap to materialise once, cache for the
+        // window, and slice per page. Doing it this way keeps a single cache entry
+        // per filter combination and a stable order across pages (so pages never
+        // duplicate or drop items). Pushing LIMIT/OFFSET into the `filter_soundscapes`
+        // RPC would need a DB migration, a separate COUNT for `result_count`, and
+        // per-page cache keys — more moving parts and a weaker ordering guarantee,
+        // for no benefit at this size. Revisit (move paging into the RPC) only if
+        // the catalogue grows into the thousands.
         const totalCount = cachedData.result_count
         const allSoundscapes = cachedData.soundscapes
-        const paginatedSoundscapes = limit !== undefined 
+        const paginatedSoundscapes = limit !== undefined
             ? allSoundscapes.slice(offset, offset + limit)
             : allSoundscapes
 

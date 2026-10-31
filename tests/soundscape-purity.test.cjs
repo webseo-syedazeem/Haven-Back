@@ -34,7 +34,7 @@ test('backend legal copy and onboarding contract reflect their separate scopes',
   assert.match(routes, /Work/);
   assert.match(routes, /Overthinking/);
 
-  // ...and the contract stays soundscape-only: no obsolete Halcyon/Haven health,
+  // ...and the contract stays soundscape-only: no obsolete health,
   // mood, breathing, or check-in functionality is reintroduced here.
   assert.doesNotMatch(
     routes,

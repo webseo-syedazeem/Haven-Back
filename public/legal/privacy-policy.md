@@ -144,11 +144,11 @@ You have control over your information. Depending on your location, you may have
 - **object to or restrict** certain processing;
 - **lodge a complaint** with your local data protection authority.
 
-To exercise any right not available directly in the App, contact us at **info@halcyonapp.io**. We will respond within the timeframe required by applicable law.
+To exercise any right not available directly in the App, contact us at **[PASSAGE_SUPPORT_EMAIL — TO BE CONFIRMED]**. We will respond within the timeframe required by applicable law.
 
 ## 11. Children's Privacy
 
-Passage is not directed to children under the age of **13**, and we do not knowingly collect personal information from them. If you believe a child has provided us with information, please contact us at **info@halcyonapp.io** and we will take steps to delete it.
+Passage is not directed to children under the age of **13**, and we do not knowingly collect personal information from them. If you believe a child has provided us with information, please contact us at **[PASSAGE_SUPPORT_EMAIL — TO BE CONFIRMED]** and we will take steps to delete it.
 
 ## 12. International Data Transfers
 
@@ -162,7 +162,7 @@ The data controller responsible for your information is **HAPPY CHEEKS LTD** (co
 
 ### 13.2 California (CCPA / CPRA)
 
-If you are a California resident, you have the right to know what personal information we collect (see Section 3), to request its deletion or correction, and to opt out of the "sale" or "sharing" of personal information. **We do not sell or share your personal information** as those terms are defined under the CCPA/CPRA. We will not discriminate against you for exercising your privacy rights. To make a request, contact us at **info@halcyonapp.io**.
+If you are a California resident, you have the right to know what personal information we collect (see Section 3), to request its deletion or correction, and to opt out of the "sale" or "sharing" of personal information. **We do not sell or share your personal information** as those terms are defined under the CCPA/CPRA. We will not discriminate against you for exercising your privacy rights. To make a request, contact us at **[PASSAGE_SUPPORT_EMAIL — TO BE CONFIRMED]**.
 
 ## 14. Changes to This Policy
 
@@ -174,8 +174,8 @@ If you have questions, concerns, or requests regarding this Privacy Policy or yo
 
 **HAPPY CHEEKS LTD**
 Company number: **15146182**
-Email: **info@halcyonapp.io**
-Website: **https://halcyonapp.io/**
+Email: **[PASSAGE_SUPPORT_EMAIL — TO BE CONFIRMED]**
+Website: **https://passagesounds.app**
 Address: **Apartment 37 Ellis Court, Textile Street, Dewsbury, England, WF13 2EX**
 
 ---

@@ -89,6 +89,20 @@ const SoundscapeRoutes = express.Router()
  *           type: string
  *           default: recommended
  *           enum: [recommended, most_played, most_saved, recently_added, a_z, shortest, longest, lowest_intensity, highest_detail]
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 200
+ *         description: Number of results to return (for pagination)
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: Number of results to skip (for pagination)
  *     responses:
  *       '200':
  *         description: Filtered live soundscapes returned successfully

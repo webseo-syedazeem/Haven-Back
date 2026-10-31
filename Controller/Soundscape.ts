@@ -202,6 +202,18 @@ export const GetLibrary = async (req: Request, res: Response) => {
         })
     }
 
+    // Parse pagination parameters
+    const limit = typeof req.query.limit === "string" ? parseInt(req.query.limit, 10) : undefined
+    const offset = typeof req.query.offset === "string" ? parseInt(req.query.offset, 10) : 0
+
+    if (limit !== undefined && (isNaN(limit) || limit < 1 || limit > 200)) {
+        return res.status(400).json({ success: false, error: "limit must be between 1 and 200" })
+    }
+
+    if (isNaN(offset) || offset < 0) {
+        return res.status(400).json({ success: false, error: "offset must be 0 or greater" })
+    }
+
     try {
         let avoids = clientAvoids
 
@@ -254,7 +266,7 @@ export const GetLibrary = async (req: Request, res: Response) => {
         }
 
         // Cache catalogue data only; echo this request's filter order/spelling below.
-        const data = await remember(libraryCacheKey(appliedFilters), CacheTTL.LIBRARY, async () => {
+        const cachedData = await remember(libraryCacheKey(appliedFilters), CacheTTL.LIBRARY, async () => {
             const { data: soundscapes, error: soundscapesError } = await supabaseAdmin.rpc(
                 "filter_soundscapes",
                 {
@@ -280,9 +292,25 @@ export const GetLibrary = async (req: Request, res: Response) => {
             return { soundscapes: rows, result_count: rows.length }
         })
 
+        // Apply pagination to the cached results
+        const totalCount = cachedData.result_count
+        const allSoundscapes = cachedData.soundscapes
+        const paginatedSoundscapes = limit !== undefined 
+            ? allSoundscapes.slice(offset, offset + limit)
+            : allSoundscapes
+
         return res.status(200).json({
             success: true,
-            data: { ...data, applied_filters: appliedFilters },
+            data: { 
+                soundscapes: paginatedSoundscapes, 
+                result_count: totalCount,
+                applied_filters: appliedFilters,
+                pagination: {
+                    offset,
+                    limit: limit !== undefined ? limit : totalCount,
+                    has_more: offset + (limit || totalCount) < totalCount
+                }
+            },
         })
     } catch (err) {
         if (err instanceof CacheReadError) {

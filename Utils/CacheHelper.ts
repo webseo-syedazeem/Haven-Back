@@ -4,7 +4,7 @@ import { redis } from "../Config/RedisConnection.ts"
 export const CacheTTL = {
     CONTENT: 3600,
     USER: 60,
-    LIBRARY: 600,
+    LIBRARY: 7 * 24 * 60 * 60, // 7 days cache for library
     ONE_HOUR: 60 * 60,
     SIX_HOURS: 6 * 60 * 60,
     ONE_DAY: 24 * 60 * 60,

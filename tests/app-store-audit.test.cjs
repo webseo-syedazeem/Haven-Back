@@ -32,3 +32,32 @@ test('the production audit SQL is one repeatable transaction with verification',
   assert.match(migration, /p\.proname = 'save_user_onboarding_completion'/);
   assert.match(migration, /has_function_privilege/);
 });
+
+// H-04 remediation tests
+test('DeleteAccount anonymizes support_requests personal fields (H-04)', () => {
+  const auth = read('Controller/Auth.ts');
+  // Must update contact_email to null
+  assert.match(auth, /support_requests/);
+  assert.match(auth, /contact_email.*null/s);
+  assert.match(auth, /subject.*\[deleted\]/s);
+  assert.match(auth, /message.*\[deleted\]/s);
+  // Must be scoped to the user being deleted, not global
+  assert.match(auth, /\.eq\("user_id",\s*appUserId\)/);
+});
+
+test('DeleteAccount anonymizes analytics_events personal fields (H-04)', () => {
+  const auth = read('Controller/Auth.ts');
+  assert.match(auth, /analytics_events/);
+  assert.match(auth, /event_data.*\{\}/s);
+  assert.match(auth, /session_id.*null/s);
+});
+
+test('H-04 back-fill migration file exists and is a transaction', () => {
+  const migration = read('Database/20261101_h04_account_deletion_anonymization.sql');
+  assert.match(migration, /begin;/i);
+  assert.match(migration, /commit;/i);
+  assert.match(migration, /update public\.support_requests/i);
+  assert.match(migration, /update public\.analytics_events/i);
+  assert.match(migration, /contact_email\s*=\s*null/i);
+  assert.match(migration, /event_data\s*=\s*'\{\}'::jsonb/i);
+});

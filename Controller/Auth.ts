@@ -863,6 +863,41 @@ export const DeleteAccount = async (req: Request, res: Response) => {
                 for (const table of appUserTables) {
                     await deleteRows(table, "user_id", appUserId)
                 }
+
+                // App Store 5.1.1(v) + privacy policy: support requests carry personal
+                // data (contact_email, subject, message). The user_id FK is already
+                // ON DELETE SET NULL, but that alone leaves identifiable content.
+                // Nullify personal fields so the row can be retained for operational
+                // purposes (type, status, created_at) without re-identifying the person.
+                const { error: supportAnonymizeError } = await supabaseAdmin
+                    .from("support_requests")
+                    .update({
+                        contact_email: null,
+                        subject: "[deleted]",
+                        message: "[deleted]",
+                    })
+                    .eq("user_id", appUserId)
+
+                if (supportAnonymizeError) {
+                    console.error("Anonymize support_requests error:", supportAnonymizeError)
+                    throw new Error("Failed to anonymize support_requests")
+                }
+
+                // analytics_events: user_id is ON DELETE SET NULL but session_id and
+                // event_data may contain session-scoped identifiers. Clear them so no
+                // cross-session profile can be reconstructed from the retained rows.
+                const { error: analyticsAnonymizeError } = await supabaseAdmin
+                    .from("analytics_events")
+                    .update({
+                        event_data: {},
+                        session_id: null,
+                    })
+                    .eq("user_id", appUserId)
+
+                if (analyticsAnonymizeError) {
+                    console.error("Anonymize analytics_events error:", analyticsAnonymizeError)
+                    throw new Error("Failed to anonymize analytics_events")
+                }
             } finally {
                 // Some deletions may have committed before a later table failed.
                 await invalidateUser(user.id)

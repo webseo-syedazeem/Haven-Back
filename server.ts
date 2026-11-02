@@ -274,27 +274,25 @@ app.use(
     })
 )
 
-if (process.env.NODE_ENV === "production") {
-    app.use(express.json({ limit: "10kb" }))
-    app.use(express.urlencoded({ extended: true, limit: "10kb" }))
-    app.use("/api", apiLimiter)
-    app.use("/api/signin", authLimiter)
-    app.use("/api/signin", authIdentityLimiter)
-    app.use("/api/signup", authLimiter)
-    app.use("/api/signup", authIdentityLimiter)
-    app.use("/api/forgot-password", authLimiter)
-    app.use("/api/forgot-password", authIdentityLimiter)
-    app.use("/api/reset-password", authLimiter)
-    app.use("/api/reset-password", authIdentityLimiter)
-    // Audit H-4: these auth routes were previously unthrottled — Google token
-    // replay, refresh abuse and the change-password old-password oracle.
-    app.use("/api/auth/google", authLimiter)
-    app.use("/api/refresh-token", refreshLimiter)
-    app.use("/api/change-password", authLimiter)
-} else {
-    app.use(express.json())
-    app.use(express.urlencoded({ extended: true }))
-}
+// Body-size limits and rate limiting apply in all environments (M-07).
+// A local dev server deserves the same protections as production, and the
+// limits are generous enough not to interfere with development workflows.
+app.use(express.json({ limit: "10kb" }))
+app.use(express.urlencoded({ extended: true, limit: "10kb" }))
+app.use("/api", apiLimiter)
+app.use("/api/signin", authLimiter)
+app.use("/api/signin", authIdentityLimiter)
+app.use("/api/signup", authLimiter)
+app.use("/api/signup", authIdentityLimiter)
+app.use("/api/forgot-password", authLimiter)
+app.use("/api/forgot-password", authIdentityLimiter)
+app.use("/api/reset-password", authLimiter)
+app.use("/api/reset-password", authIdentityLimiter)
+// Audit H-4: these auth routes were previously unthrottled — Google token
+// replay, refresh abuse and the change-password old-password oracle.
+app.use("/api/auth/google", authLimiter)
+app.use("/api/refresh-token", refreshLimiter)
+app.use("/api/change-password", authLimiter)
 
 app.use(
     pinoHttp({
@@ -438,6 +436,9 @@ app.use(
     })
 )
 
+// Audio routes are intentionally unauthenticated: files are enumeration-resistant
+// UUIDs and the app caches signed Supabase URLs as the primary delivery path.
+// Direct streaming here is a fallback for SDK-served URLs only.
 app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, async (req, res) => {
     return streamAudioFile(soundscapesPath, req.params[0], req, res, "Soundscape not found")
 })
@@ -582,10 +583,8 @@ const options = {
     },
 
     // VERY IMPORTANT
-    apis: [
-        path.resolve("server.ts"),
-        path.resolve("Routes", "*.ts"),
-    ],
+    // Use forward-slash paths — swaggerJsdoc's glob fails on Windows backslashes.
+    apis: ["./server.ts", "./Routes/*.ts"],
 }
 
 const swaggerSpec = swaggerJsdoc(options)

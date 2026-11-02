@@ -36,11 +36,11 @@ We collect only what is needed to run the App for you.
 - **Play history and player state** — what you have played, when, and where you paused, so you can pick up where you left off.
 - **Sound preferences** — preferred environments and sounds, sounds you have asked us to avoid, detail preference, and typical session length.
 - **Playback and notification settings** — including your chosen wind-down reminder time, so your settings follow you to a new device.
-- **Onboarding answers** — your chosen mood and listening preferences, if you provide them during setup.
+- **Onboarding answers** — your listening preferences, if you provide them during setup.
 
 ### 3.3 Push notification tokens
 
-All notifications are **off by default**. If, and only if, you turn a notification on, the App registers this device's push token with us so a notification can reach it. We keep a log of the notifications we send you. Turning notifications off, signing out, or deleting your account ends this.
+All notifications are **off by default**. If, and only if, you turn a notification on, the App registers this device's push token with us so a notification can reach it. We keep a log of the notifications we send you. Turning notifications off or signing out unregisters your device so no further notifications are sent. Deleting your account removes the token record entirely.
 
 ### 3.4 Support requests
 
@@ -69,7 +69,7 @@ We use your information to:
 - choose what to recommend to you, and hide soundscapes containing sounds you have asked to avoid;
 - deliver the notifications you have turned on;
 - answer your support requests and act on the problems you report;
-- improve the App and its catalogue, using anonymous usage analytics **only if you have turned them on**;
+- improve the App and its catalogue, using usage analytics linked to your account identifier **only if you have turned them on**;
 - maintain, secure and troubleshoot the App;
 - comply with our legal obligations.
 
@@ -92,7 +92,7 @@ If you are located in the European Economic Area, the United Kingdom, or Switzer
 - **Push delivery:** **Expo Push Service** and **Apple Push Notification service (APNs)**, used only when you enable notifications.
 - **Sign-in:** **Google** or **Apple**, if you choose the corresponding sign-in option.
 - **Analytics:** **PostHog**, only when you enable usage analytics.
-- **Diagnostics:** **Sentry**, for crash, error and performance diagnostics configured to avoid direct personal information.
+- **Diagnostics:** **Sentry**, for crash, error and performance diagnostics. Diagnostic events are linked to your account identifier (user ID only — no name or email) when you have diagnostics sharing enabled.
 - **Legal and safety reasons:** where required by law or legal process, or to protect the rights, safety and security of our users, the public, or Passage.
 - **Business transfers:** in connection with a merger, acquisition, financing, or sale of assets, where your information may transfer subject to this policy.
 - **With your consent:** in any other case, with your explicit permission.
@@ -130,7 +130,9 @@ We keep your information for as long as your account is active or as needed to p
 
 When you delete your account, we remove your account record and authentication account, your favourites, play history, playlists, player state, sound, playback and notification settings, onboarding answers, registered device tokens, and your profile picture files.
 
-Support requests, and any analytics events collected while you had analytics switched on, are **retained but unlinked from your account** — the link to you is removed so the remaining record is anonymous. Information may also persist briefly in service-provider backups and logs until those records age out under the provider's normal retention cycle.
+When you delete your account, personal fields in support requests (email address, subject, message text) are replaced with deleted markers so the operational record type and status is retained for support continuity without identifying you. Analytics events collected while analytics were on are retained with the account link removed. Crash and performance diagnostic data is retained subject to Sentry's standard retention policy. Information may also persist briefly in service-provider backups and logs until those records age out under the provider's normal retention cycle.
+
+**Retention periods:** analytics events are retained for up to 14 months; crash and performance diagnostics per Sentry's data retention policy (typically 90 days); support records indefinitely for operational purposes with personal fields removed on account deletion.
 
 ## 10. Your Rights and Choices
 
@@ -144,11 +146,11 @@ You have control over your information. Depending on your location, you may have
 - **object to or restrict** certain processing;
 - **lodge a complaint** with your local data protection authority.
 
-To exercise any right not available directly in the App, contact us at **[PASSAGE_SUPPORT_EMAIL — TO BE CONFIRMED]**. We will respond within the timeframe required by applicable law.
+To exercise any right not available directly in the App, contact us using the Contact Support option within the App, or at the address below. We will respond within the timeframe required by applicable law.
 
 ## 11. Children's Privacy
 
-Passage is not directed to children under the age of **13**, and we do not knowingly collect personal information from them. If you believe a child has provided us with information, please contact us at **[PASSAGE_SUPPORT_EMAIL — TO BE CONFIRMED]** and we will take steps to delete it.
+Passage is not directed to children under the age of **13**, and we do not knowingly collect personal information from them. If you believe a child has provided us with information, please contact us using the Contact Support option in the App or at the address below, and we will take steps to delete it.
 
 ## 12. International Data Transfers
 
@@ -162,7 +164,7 @@ The data controller responsible for your information is **HAPPY CHEEKS LTD** (co
 
 ### 13.2 California (CCPA / CPRA)
 
-If you are a California resident, you have the right to know what personal information we collect (see Section 3), to request its deletion or correction, and to opt out of the "sale" or "sharing" of personal information. **We do not sell or share your personal information** as those terms are defined under the CCPA/CPRA. We will not discriminate against you for exercising your privacy rights. To make a request, contact us at **[PASSAGE_SUPPORT_EMAIL — TO BE CONFIRMED]**.
+If you are a California resident, you have the right to know what personal information we collect (see Section 3), to request its deletion or correction, and to opt out of the "sale" or "sharing" of personal information. **We do not sell or share your personal information** as those terms are defined under the CCPA/CPRA. We will not discriminate against you for exercising your privacy rights. To make a request, contact us using the Contact Support option in the App or at the address below.
 
 ## 14. Changes to This Policy
 
@@ -174,7 +176,7 @@ If you have questions, concerns, or requests regarding this Privacy Policy or yo
 
 **HAPPY CHEEKS LTD**
 Company number: **15146182**
-Email: **[PASSAGE_SUPPORT_EMAIL — TO BE CONFIRMED]**
+Contact: **via Profile → Contact Support in the App**
 Website: **https://passagesounds.app**
 Address: **Apartment 37 Ellis Court, Textile Street, Dewsbury, England, WF13 2EX**
 

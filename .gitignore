@@ -19,3 +19,7 @@ public/**/*.m4a
 public/**/*.wav
 public/**/*.ogg
 soundscapes/
+
+# Apple Sign In key — must never be committed
+*.p8
+AuthKey_*.p8

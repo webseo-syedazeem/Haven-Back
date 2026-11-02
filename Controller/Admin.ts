@@ -1528,11 +1528,26 @@ export const DeleteAdminRemoteConfig = async (req: Request, res: Response) => {
     }
 }
 
+// Keys the public endpoint is permitted to return. Anything not in this list
+// is refused even if it exists in the table with is_verified = true.
+const PUBLIC_REMOTE_CONFIG_ALLOWLIST = new Set([
+    "maintenance_mode",
+    "minimum_app_version",
+    "force_update_url",
+    "feature_flag_onboarding_v2",
+    "feature_flag_relax_flow",
+    "app_review_prompt_enabled",
+])
+
 export const GetPublicRemoteConfig = async (req: Request, res: Response) => {
     const key = String(req.params.key || "").trim()
 
     if (!key) {
         return res.status(400).json({ success: false, error: "key is required" })
+    }
+
+    if (!PUBLIC_REMOTE_CONFIG_ALLOWLIST.has(key)) {
+        return res.status(404).json({ success: false, error: "Remote config key not found" })
     }
 
     try {

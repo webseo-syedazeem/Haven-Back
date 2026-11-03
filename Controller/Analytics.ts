@@ -69,24 +69,15 @@ const normalizeEvent = (raw: unknown): { event?: NormalizedEvent; error?: string
 
 type ResolvedSender = {
     userId: AppUserId | null
-    /**
-     * False only for an identified user who has analytics switched off. An
-     * anonymous sender has no consent record to check, so it stays true and the
-     * client's own gate remains the control for guest events.
-     */
     consented: boolean
 }
 
 const resolveSender = async (req: Request): Promise<ResolvedSender> => {
-    if (!req.user?.id) {
-        return { userId: null, consented: getRequestBody(req).consented === true }
-    }
-
     try {
         const { data: userProfile, error } = await supabaseAdmin
             .from("users")
             .select("id, analytics_enabled")
-            .eq("auth_user_id", req.user.id)
+            .eq("auth_user_id", req.user!.id)
             .maybeSingle()
 
         if (error) {

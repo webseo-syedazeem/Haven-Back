@@ -1,6 +1,6 @@
 import express from "express"
 import { LogAnalyticsEvents } from "../Controller/Analytics.ts"
-import { OptionalAuthMiddleware } from "../Middleware/OptionalAuthMiddleware.ts"
+import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
 
 const AnalyticsRoutes = express.Router()
 
@@ -18,7 +18,7 @@ const AnalyticsRoutes = express.Router()
  *     tags: [Analytics]
  *     summary: Log one or more analytics events
  *     description: >
- *       Authentication is optional. Guests may send session_id to group events.
+ *       A valid bearer token is required. Events are associated with the verified account.
  *       Accepts a single event ({ event_name, event_data?, session_id? }) or a batch
  *       ({ events: [...] }). Clients fire these events; other API controllers do not.
  *       Consent is enforced for authenticated callers: when the user's
@@ -61,6 +61,6 @@ const AnalyticsRoutes = express.Router()
  *       '500':
  *         description: Server error
  */
-AnalyticsRoutes.post("/analytics/events", OptionalAuthMiddleware, LogAnalyticsEvents)
+AnalyticsRoutes.post("/analytics/events", AuthMiddleware, LogAnalyticsEvents)
 
 export default AnalyticsRoutes

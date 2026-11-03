@@ -12,9 +12,12 @@ test('testimonial publishing requires mode and consent confirmation', () => {
   assert.match(admin, /key === "home_testimonials"/);
 });
 
-test('guest analytics require an explicit consent flag', () => {
+test('analytics require authentication and server-side account consent', () => {
   const analytics = read('Controller/Analytics.ts');
-  assert.match(analytics, /getRequestBody\(req\)\.consented === true/);
+  const routes = read('Routes/Analytics.ts');
+  assert.match(routes, /AnalyticsRoutes\.post\("\/analytics\/events", AuthMiddleware/);
+  assert.match(analytics, /analytics_enabled === true/);
+  assert.doesNotMatch(analytics, /body\.consented|getRequestBody\(req\)\.consented/);
 });
 
 test('push delivery uses Expo tokens and not legacy FCM server keys', () => {

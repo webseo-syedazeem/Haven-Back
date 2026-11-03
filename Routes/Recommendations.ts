@@ -1,6 +1,6 @@
 import express from "express"
 import { GetRecommendations } from "../Controller/Recommendations.ts"
-import { OptionalAuthMiddleware } from "../Middleware/OptionalAuthMiddleware.ts"
+import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
 
 const RecommendationsRoutes = express.Router()
 
@@ -27,7 +27,7 @@ const RecommendationsRoutes = express.Router()
  *       intensity_preference, typical_duration as a duration fallback).
  *       excluded_sounds is always a hard exclusion. main_goal is stored but deliberately
  *       not used in ranking.
- *       Guests and signed-in users with no stored mode fall back to the prior generic
+ *       Signed-in users with no stored mode fall back to the prior generic
  *       behaviour: mixed-mode, most-played/popular for users with no preferences at all.
  *     security:
  *       - bearerAuth: []
@@ -63,6 +63,6 @@ const RecommendationsRoutes = express.Router()
  *       '500':
  *         description: Server error
  */
-RecommendationsRoutes.get("/recommendations", OptionalAuthMiddleware, GetRecommendations)
+RecommendationsRoutes.get("/recommendations", AuthMiddleware, GetRecommendations)
 
 export default RecommendationsRoutes

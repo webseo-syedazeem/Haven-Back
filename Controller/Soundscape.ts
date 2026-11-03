@@ -455,6 +455,17 @@ const getPreviewPool = (mode: SoundscapeMode): Promise<SoundscapeRecord[]> => {
     return request
 }
 
+const toPublicPreviewSoundscape = (soundscape: SoundscapeRecord) => ({
+    id: soundscape.id,
+    title: soundscape.title,
+    short_title: soundscape.short_title,
+    one_line_description: soundscape.one_line_description,
+    artwork_url: soundscape.artwork_url,
+    preview_url: soundscape.preview_url,
+    mode: soundscape.mode,
+    colour: soundscape.colour,
+})
+
 // Flat rotating list for the onboarding preview screen. The catalogue pool stays
 // cached, while each request receives its own atomic sequence slot and therefore
 // a different combination until all possible combinations have been served.
@@ -474,13 +485,16 @@ export const GetSoundscapesModePreview = async (req: Request, res: Response) => 
     }
 
     try {
-        const pool = await getPreviewPool(mode)
+        const pool = (await getPreviewPool(mode)).filter(
+            (soundscape) => typeof soundscape.preview_url === "string" && soundscape.preview_url.trim().length > 0
+        )
         const sequence = await nextSequence(
             `rotation:soundscapes:mode:${mode}:preview:${parsedCount.count}`
         )
         const data = {
             mode,
-            soundscapes: selectPreviewCombination(pool, parsedCount.count, sequence),
+            soundscapes: selectPreviewCombination(pool, parsedCount.count, sequence)
+                .map(toPublicPreviewSoundscape),
         }
 
         // The pool is cached server-side, but each response is deliberately unique.

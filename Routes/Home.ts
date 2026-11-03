@@ -2,7 +2,6 @@ import express from "express"
 import { GetContinueListening } from "../Controller/Home.ts"
 import { GetRecommendedNow } from "../Controller/Recommendations.ts"
 import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
-import { OptionalAuthMiddleware } from "../Middleware/OptionalAuthMiddleware.ts"
 
 const HomeRoutes = express.Router()
 
@@ -50,6 +49,6 @@ HomeRoutes.get("/home/continue-listening", AuthMiddleware, GetContinueListening)
  *       '500':
  *         description: Server error
  */
-HomeRoutes.get("/home/recommended", OptionalAuthMiddleware, GetRecommendedNow)
+HomeRoutes.get("/home/recommended", AuthMiddleware, GetRecommendedNow)
 
 export default HomeRoutes

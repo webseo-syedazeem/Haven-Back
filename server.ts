@@ -32,6 +32,7 @@ import { parseAudioByteRange } from "./Utils/AudioRange.ts"
 import { Sentry } from "./instrument.ts"
 import { logger } from "./Config/Logger.ts"
 import { Health } from "./Controller/Health.ts"
+import { AuthMiddleware } from "./Middleware/AuthMiddleware.ts"
 
 const app = express()
 app.set("trust proxy", 1)
@@ -341,7 +342,7 @@ const streamAudioFile = async (
         const commonHeaders = {
             "Accept-Ranges": "bytes",
             "Content-Type": AUDIO_CONTENT_TYPES[extension] || "application/octet-stream",
-            "Cache-Control": "public, max-age=31536000, immutable", // Tells mobile devices to cache safely
+            "Cache-Control": "private, max-age=3600", // authenticated media must not enter shared caches
             "Content-Disposition": "inline",
             "X-Content-Type-Options": "nosniff",
             "X-Accel-Buffering": "no", // Disables Nginx buffering for real-time delivery
@@ -436,14 +437,14 @@ app.use(
     })
 )
 
-// Audio routes are intentionally unauthenticated: files are enumeration-resistant
-// UUIDs and the app caches signed Supabase URLs as the primary delivery path.
-// Direct streaming here is a fallback for SDK-served URLs only.
-app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, async (req, res) => {
+// Direct audio delivery is authenticated and retains HTTP Range support for
+// seeking, background playback and lock-screen controls. Production CDN URLs
+// must be signed/private as documented in PASSAGE_GUEST_MODE_EXTERNAL_SETUP.md.
+app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, AuthMiddleware, async (req, res) => {
     return streamAudioFile(soundscapesPath, req.params[0], req, res, "Soundscape not found")
 })
 
-app.get(/^\/previews\/(.+\.(?:m4a|mp3|ogg|wav))$/i, async (req, res) => {
+app.get(/^\/previews\/(.+\.(?:m4a|mp3|ogg|wav))$/i, AuthMiddleware, async (req, res) => {
     return streamAudioFile(previewsPath, req.params[0], req, res, "Preview not found")
 })
 

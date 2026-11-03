@@ -1,13 +1,15 @@
 # Privacy Policy for Passage
 
 **Effective Date:** 5 September 2026
-**Last Updated:** 30 October 2026
+**Last Updated:** 2 November 2026
 
 ## 1. Introduction
 
 This Privacy Policy explains how **HAPPY CHEEKS LTD** (company number 15146182), trading through the **Passage** mobile application ("Passage", "we", "us", or "our"), collects, uses, stores, and protects your information when you use the Passage mobile application and related services (collectively, the "App").
 
 Passage is a soundscape app for sleep, relaxation and focus. It offers a catalogue of soundscapes, playlists, a sleep timer, and preferences that shape what is recommended to you.
+
+You must create an account or sign in before accessing the Passage catalogue or full soundscapes. Passage does not offer an unauthenticated full listening mode; the onboarding flow may play three short public preview clips before sign-in.
 
 Passage does not collect or process payment information.
 
@@ -28,6 +30,7 @@ We collect only what is needed to run the App for you.
 - **Sign-in details:** your name and email address, and a securely stored password. Authentication is handled by our provider, **Supabase**; we never see your password in readable form.
 - **Google sign-in (optional):** if you choose to sign in with Google, we receive basic profile information from your Google account, such as your name and email address.
 - **Profile picture (optional):** if you add one, the image file is stored in our Supabase Storage bucket and the App records its URL against your account.
+- **Authenticated session:** after sign-in, Supabase issues session tokens that the App stores in device-protected storage and presents to our API. We validate the session before allowing access to account data, the soundscape catalogue, or full soundscape audio. The three short onboarding preview clips are public.
 
 ### 3.2 Your content and activity in the App
 
@@ -44,7 +47,7 @@ All notifications are **off by default**. If, and only if, you turn a notificati
 
 ### 3.4 Support requests
 
-When you contact support, report a problem with a soundscape, or request a soundscape, we store your message, the subject or reason where you provide one, the soundscape concerned where relevant, and — if you are not signed in — the email address you give us so we can reply.
+When you contact support, report a problem with a soundscape, or request a soundscape, we store your message, the subject or reason where you provide one, the soundscape concerned where relevant, and any reply email address you choose to provide. Support requests are linked to your authenticated Passage account.
 
 ### 3.5 Usage analytics (optional, off by default)
 
@@ -65,6 +68,7 @@ We do **not** collect health or fitness data, location data, contacts, advertisi
 We use your information to:
 
 - provide the App and play soundscapes, and let you resume where you left off;
+- provide short onboarding previews and authorise catalogue and full-soundscape access for your signed-in session;
 - keep your favourites, playlists and preferences available and in sync when you sign in on another device;
 - choose what to recommend to you, and hide soundscapes containing sounds you have asked to avoid;
 - deliver the notifications you have turned on;
@@ -88,7 +92,7 @@ If you are located in the European Economic Area, the United Kingdom, or Switzer
 
 **We do not sell your personal information.** We share it only in the limited circumstances below:
 
-- **Service providers:** **Supabase**, which provides our authentication, database and file storage (including your profile picture), and our cloud backend infrastructure, both processing information on our behalf.
+- **Service providers:** **Supabase**, which provides our authentication, database and file storage (including your profile picture), and **Amazon Web Services / CloudFront**, which delivers Passage soundscape and artwork files, processing information on our behalf.
 - **Push delivery:** **Expo Push Service** and **Apple Push Notification service (APNs)**, used only when you enable notifications.
 - **Sign-in:** **Google** or **Apple**, if you choose the corresponding sign-in option.
 - **Analytics:** **PostHog**, only when you enable usage analytics.
@@ -106,10 +110,11 @@ Passage relies on the following third-party services:
 - **Expo Push Service and APNs** — push notification delivery, if you enable notifications.
 - **PostHog** — optional product analytics, if you enable it.
 - **Sentry** — crash, error and performance diagnostics.
+- **Amazon Web Services / CloudFront** — delivery of public onboarding preview clips, plus full soundscape audio and artwork after authorisation.
 
 We encourage you to review the privacy policies of any third-party service you connect.
 
-> **Note on audio:** Passage's soundscapes are produced in advance and stored in our library, then streamed to your device. Your personal information is never sent to any audio-generation service to create them.
+> **Note on audio:** Passage's soundscapes are produced in advance and stored in our library. Three short onboarding preview clips are public; full soundscapes are streamed after the service authorises your signed-in session. Authorised streaming does not make audio end-to-end encrypted or prevent a receiving device from recording it. Your personal information is never sent to any audio-generation service to create the soundscapes.
 
 ## 8. Data Storage and Security
 

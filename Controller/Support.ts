@@ -31,14 +31,10 @@ const getOptionalString = (
 }
 
 const getAppUserId = async (req: Request, res: Response): Promise<AppUserId | null | undefined> => {
-    if (!req.user) {
-        return null
-    }
-
     const { data: userProfile, error: userProfileError } = await supabaseAdmin
         .from("users")
         .select("id")
-        .eq("auth_user_id", req.user.id)
+        .eq("auth_user_id", req.user!.id)
         .maybeSingle()
 
     if (userProfileError) {
@@ -60,14 +56,6 @@ const resolveSubmissionIdentity = async (
     res: Response,
     contactEmail: string | null,
 ): Promise<{ userId: AppUserId | null } | null> => {
-    if (!req.user && !contactEmail) {
-        res.status(400).json({
-            success: false,
-            error: "contact_email is required for guest submissions",
-        })
-        return null
-    }
-
     const userId = await getAppUserId(req, res)
 
     if (userId === undefined) {

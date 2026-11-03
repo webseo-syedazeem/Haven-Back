@@ -6,7 +6,6 @@ import {
     RequestSoundscape,
 } from "../Controller/Support.ts"
 import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
-import { OptionalAuthMiddleware } from "../Middleware/OptionalAuthMiddleware.ts"
 
 const SupportRoutes = express.Router()
 
@@ -14,7 +13,7 @@ const SupportRoutes = express.Router()
  * @swagger
  * tags:
  *   - name: Support
- *     description: Guest and authenticated support request routes
+ *     description: Authenticated support request routes
  */
 
 /**
@@ -24,7 +23,7 @@ const SupportRoutes = express.Router()
  *     tags:
  *       - Support
  *     summary: Contact Passage support
- *     description: Authentication is optional. Guest submissions must provide contact_email.
+ *     description: Requires a valid bearer token. contact_email is optional.
  *     security:
  *       - bearerAuth: []
  *       - {}
@@ -52,7 +51,7 @@ const SupportRoutes = express.Router()
  *       '500':
  *         description: Server error
  */
-SupportRoutes.post("/support/contact", OptionalAuthMiddleware, ContactSupport)
+SupportRoutes.post("/support/contact", AuthMiddleware, ContactSupport)
 
 /**
  * @swagger
@@ -61,7 +60,7 @@ SupportRoutes.post("/support/contact", OptionalAuthMiddleware, ContactSupport)
  *     tags:
  *       - Support
  *     summary: Report a problem with a soundscape's audio
- *     description: Authentication is optional. Guest submissions must provide contact_email.
+ *     description: Requires a valid bearer token. contact_email is optional.
  *     security:
  *       - bearerAuth: []
  *       - {}
@@ -97,7 +96,7 @@ SupportRoutes.post("/support/contact", OptionalAuthMiddleware, ContactSupport)
  *       '500':
  *         description: Server error
  */
-SupportRoutes.post("/support/report-audio-problem", OptionalAuthMiddleware, ReportAudioProblem)
+SupportRoutes.post("/support/report-audio-problem", AuthMiddleware, ReportAudioProblem)
 
 /**
  * @swagger
@@ -106,7 +105,7 @@ SupportRoutes.post("/support/report-audio-problem", OptionalAuthMiddleware, Repo
  *     tags:
  *       - Support
  *     summary: Request a new soundscape
- *     description: Authentication is optional. Guest submissions must provide contact_email.
+ *     description: Requires a valid bearer token. contact_email is optional.
  *     security:
  *       - bearerAuth: []
  *       - {}
@@ -132,7 +131,7 @@ SupportRoutes.post("/support/report-audio-problem", OptionalAuthMiddleware, Repo
  *       '500':
  *         description: Server error
  */
-SupportRoutes.post("/support/request-soundscape", OptionalAuthMiddleware, RequestSoundscape)
+SupportRoutes.post("/support/request-soundscape", AuthMiddleware, RequestSoundscape)
 
 /**
  * @swagger

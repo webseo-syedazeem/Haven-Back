@@ -13,7 +13,7 @@ import {
     GetSoundscapesModePreview,
     SearchSoundscapes,
 } from "../Controller/Soundscape.ts"
-import { OptionalAuthMiddleware } from "../Middleware/OptionalAuthMiddleware.ts"
+import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
 
 const SoundscapeRoutes = express.Router()
 
@@ -21,11 +21,11 @@ const SoundscapeRoutes = express.Router()
  * @swagger
  * tags:
  *   - name: Soundscapes
- *     description: Public soundscape catalogue routes
+ *     description: Authenticated soundscape catalogue routes
  *   - name: Collections
- *     description: Public curated collection routes
+ *     description: Authenticated curated collection routes
  *   - name: Library
- *     description: Public soundscape filtering and sorting routes
+ *     description: Authenticated soundscape filtering and sorting routes
  */
 
 /**
@@ -35,6 +35,8 @@ const SoundscapeRoutes = express.Router()
  *     tags:
  *       - Library
  *     summary: Filter and sort the live soundscape library
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: modes
@@ -111,7 +113,7 @@ const SoundscapeRoutes = express.Router()
  *       '500':
  *         description: Server error
  */
-SoundscapeRoutes.get("/library", OptionalAuthMiddleware, GetLibrary)
+SoundscapeRoutes.get("/library", AuthMiddleware, GetLibrary)
 
 /**
  * @swagger
@@ -120,13 +122,15 @@ SoundscapeRoutes.get("/library", OptionalAuthMiddleware, GetLibrary)
  *     tags:
  *       - Soundscapes
  *     summary: Get all live soundscapes grouped by mode and subcategory
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       '200':
  *         description: Live soundscapes returned successfully
  *       '500':
  *         description: Server error
  */
-SoundscapeRoutes.get("/soundscapes", GetAllSoundscapes)
+SoundscapeRoutes.get("/soundscapes", AuthMiddleware, GetAllSoundscapes)
 
 /**
  * @swagger
@@ -135,6 +139,8 @@ SoundscapeRoutes.get("/soundscapes", GetAllSoundscapes)
  *     tags:
  *       - Soundscapes
  *     summary: Search live soundscapes
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: q
@@ -150,7 +156,7 @@ SoundscapeRoutes.get("/soundscapes", GetAllSoundscapes)
  *       '500':
  *         description: Server error
  */
-SoundscapeRoutes.get("/soundscapes/search", SearchSoundscapes)
+SoundscapeRoutes.get("/soundscapes/search", AuthMiddleware, SearchSoundscapes)
 
 /**
  * @swagger
@@ -158,7 +164,9 @@ SoundscapeRoutes.get("/soundscapes/search", SearchSoundscapes)
  *   get:
  *     tags:
  *       - Soundscapes
- *     summary: Get precise search suggestions (title/subcategory matches) for a query
+ *     summary: Get precise search suggestions for a query
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: q
@@ -174,7 +182,7 @@ SoundscapeRoutes.get("/soundscapes/search", SearchSoundscapes)
  *       '500':
  *         description: Server error
  */
-SoundscapeRoutes.get("/soundscapes/suggestions", GetSearchSuggestions)
+SoundscapeRoutes.get("/soundscapes/suggestions", AuthMiddleware, GetSearchSuggestions)
 
 /**
  * @swagger
@@ -182,7 +190,9 @@ SoundscapeRoutes.get("/soundscapes/suggestions", GetSearchSuggestions)
  *   get:
  *     tags:
  *       - Soundscapes
- *     summary: Get live soundscapes for one mode, grouped by subcategory
+ *     summary: Get live soundscapes for one mode
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: mode
@@ -198,7 +208,7 @@ SoundscapeRoutes.get("/soundscapes/suggestions", GetSearchSuggestions)
  *       '500':
  *         description: Server error
  */
-SoundscapeRoutes.get("/soundscapes/mode/:mode", GetSoundscapesByMode)
+SoundscapeRoutes.get("/soundscapes/mode/:mode", AuthMiddleware, GetSoundscapesByMode)
 
 /**
  * @swagger
@@ -206,15 +216,16 @@ SoundscapeRoutes.get("/soundscapes/mode/:mode", GetSoundscapesByMode)
  *   get:
  *     tags:
  *       - Soundscapes
- *     summary: Get a short flat list of live soundscapes for one mode (onboarding preview)
+ *     summary: Get a short public onboarding preview list for one mode
  *     description: >
- *       Guest-accessible - no auth. Returns a rotating combination of `count` live
+ *       Public onboarding preview. Returns a rotating combination of `count` live
  *       soundscapes as a FLAT array (no subcategory grouping). Concurrent requests use
  *       atomic rotation slots, so the same group is not repeated until every possible
  *       group has been served. Items within a group retain catalogue ranking order.
  *       If the mode has fewer than `count` live soundscapes, only those are returned -
  *       the list is never padded and a mode with none live returns an empty array.
- *       Each element is the same soundscape object the other soundscape endpoints return.
+ *       Each element contains preview-safe metadata and `preview_url`; the protected
+ *       full-audio `file_url` is never included.
  *       The eligible catalogue pool is cached per mode and cleared whenever a soundscape
  *       is created, updated, published or changes status.
  *     parameters:
@@ -269,6 +280,8 @@ SoundscapeRoutes.get("/soundscapes/mode/:mode/preview", GetSoundscapesModePrevie
  *     tags:
  *       - Soundscapes
  *     summary: Get the full details for one live soundscape
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -297,7 +310,7 @@ SoundscapeRoutes.get("/soundscapes/mode/:mode/preview", GetSoundscapesModePrevie
  *       '500':
  *         description: Server error
  */
-SoundscapeRoutes.get("/soundscapes/:id/details", GetOneSoundscape)
+SoundscapeRoutes.get("/soundscapes/:id/details", AuthMiddleware, GetOneSoundscape)
 
 /**
  * @swagger
@@ -305,7 +318,9 @@ SoundscapeRoutes.get("/soundscapes/:id/details", GetOneSoundscape)
  *   get:
  *     tags:
  *       - Soundscapes
- *     summary: Get related live soundscapes for one live soundscape (Similar Places)
+ *     summary: Get related live soundscapes
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -321,7 +336,7 @@ SoundscapeRoutes.get("/soundscapes/:id/details", GetOneSoundscape)
  *       '500':
  *         description: Server error
  */
-SoundscapeRoutes.get("/soundscapes/:id/similar", GetSimilarSoundscapes)
+SoundscapeRoutes.get("/soundscapes/:id/similar", AuthMiddleware, GetSimilarSoundscapes)
 
 /**
  * @swagger
@@ -330,13 +345,15 @@ SoundscapeRoutes.get("/soundscapes/:id/similar", GetSimilarSoundscapes)
  *     tags:
  *       - Collections
  *     summary: Get all published collections
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       '200':
  *         description: Published collections returned successfully
  *       '500':
  *         description: Server error
  */
-SoundscapeRoutes.get("/collections", GetCollections)
+SoundscapeRoutes.get("/collections", AuthMiddleware, GetCollections)
 
 /**
  * @swagger
@@ -344,7 +361,9 @@ SoundscapeRoutes.get("/collections", GetCollections)
  *   get:
  *     tags:
  *       - Collections
- *     summary: Get published collections ordered by a popularity signal (Home tab)
+ *     summary: Get popular published collections
+ *     security:
+ *       - bearerAuth: []
  *     description: >
  *       Popularity is derived from existing engagement data — aggregate play_history
  *       count plus favourites count across each collection's live member soundscapes —
@@ -355,7 +374,7 @@ SoundscapeRoutes.get("/collections", GetCollections)
  *       '500':
  *         description: Server error
  */
-SoundscapeRoutes.get("/collections/popular", GetPopularCollections)
+SoundscapeRoutes.get("/collections/popular", AuthMiddleware, GetPopularCollections)
 
 /**
  * @swagger
@@ -364,6 +383,8 @@ SoundscapeRoutes.get("/collections/popular", GetPopularCollections)
  *     tags:
  *       - Collections
  *     summary: Get one published collection with its live soundscapes
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -379,7 +400,7 @@ SoundscapeRoutes.get("/collections/popular", GetPopularCollections)
  *       '500':
  *         description: Server error
  */
-SoundscapeRoutes.get("/collections/:id", GetOneCollection)
+SoundscapeRoutes.get("/collections/:id", AuthMiddleware, GetOneCollection)
 
 /**
  * @swagger
@@ -387,7 +408,9 @@ SoundscapeRoutes.get("/collections/:id", GetOneCollection)
  *   get:
  *     tags:
  *       - Collections
- *     summary: Get published collections with live members, grouped for Explore
+ *     summary: Get published collections grouped for Explore
+ *     security:
+ *       - bearerAuth: []
  *     description: >
  *       Collections without an explore_group fall back to editorial. Collections
  *       with no live member soundscapes are omitted.
@@ -397,6 +420,6 @@ SoundscapeRoutes.get("/collections/:id", GetOneCollection)
  *       '500':
  *         description: Server error
  */
-SoundscapeRoutes.get("/explore", GetExploreGroups)
+SoundscapeRoutes.get("/explore", AuthMiddleware, GetExploreGroups)
 
 export default SoundscapeRoutes

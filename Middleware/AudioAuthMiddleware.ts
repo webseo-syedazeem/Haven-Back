@@ -3,7 +3,6 @@ import { createHash } from "crypto"
 import { createClient } from "@supabase/supabase-js"
 import { supabaseUrlValue, supabaseAnonKeyValue } from "../Config/Dbconnection.ts"
 import { authError } from "../Utils/AuthValidation.ts"
-import { logger } from "../Config/Logger.ts"
 
 // In-memory cache: SHA-256(token) → validUntil (ms epoch).
 // Prevents a Supabase network round-trip on every Range request for a single
@@ -43,18 +42,6 @@ export const AudioAuthMiddleware = async (req: Request, res: Response, next: Nex
     const authHeader = String(req.headers.authorization ?? "").trim()
     const match = authHeader.match(/^Bearer\s+(\S+)$/i)
     if (!match) {
-        // TEMPORARY DIAGNOSTIC — remove once 401 source is identified
-        const hasAuthHeader = authHeader.length > 0
-        const scheme = hasAuthHeader ? authHeader.split(/\s+/)[0] ?? "" : ""
-        logger.warn({
-            msg: "[audio-auth-diag] 401 missing_header_or_bad_scheme",
-            hasAuthHeader,
-            scheme: scheme.slice(0, 20),
-            tokenLength: 0,
-            reason: hasAuthHeader ? "bad_scheme" : "missing_header",
-            path: req.path,
-            method: req.method,
-        })
         res.set("WWW-Authenticate", "Bearer")
         authError(res, 401, "INVALID_AUTH_HEADER", "Authorization: Bearer <token> required for audio streams")
         return
@@ -77,16 +64,6 @@ export const AudioAuthMiddleware = async (req: Request, res: Response, next: Nex
 
         if (error || !data.user) {
             cache.delete(tokenHash)
-            // TEMPORARY DIAGNOSTIC — remove once 401 source is identified
-            logger.warn({
-                msg: "[audio-auth-diag] 401 verify_failed",
-                hasAuthHeader: true,
-                scheme: "Bearer",
-                tokenLength: token.length,
-                reason: "verify_failed",
-                path: req.path,
-                method: req.method,
-            })
             res.set("WWW-Authenticate", "Bearer")
             authError(res, 401, "INVALID_TOKEN", "Invalid or expired access token")
             return

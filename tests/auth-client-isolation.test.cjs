@@ -38,8 +38,13 @@ test("H-1: reset-password requires a recovery session", () => {
     assert.match(auth, /amr/)
     // The gate must run before the password is updated.
     const gate = auth.indexOf("tokenIsRecoverySession(token)")
-    const update = auth.indexOf("authClient.auth.updateUser({ password: cleanPassword })")
+    const update = auth.indexOf("supabaseAdmin.auth.admin.updateUserById(tokenData.user.id")
     assert.ok(gate > 0 && update > gate, "the recovery check must precede updateUser")
+    assert.equal(
+        auth.includes("authClient.auth.updateUser({ password: cleanPassword })"),
+        false,
+        "a stateless recovery client must not call updateUser without a refresh-token session",
+    )
 })
 
 test("H-2: logout revokes the session with the admin API", () => {

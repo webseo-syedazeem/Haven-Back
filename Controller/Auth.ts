@@ -579,7 +579,15 @@ export const ResetPassword = async (req: Request, res: Response) => {
             )
         }
 
-        const { data, error } = await authClient.auth.updateUser({ password: cleanPassword })
+        // `auth.updateUser()` requires the Supabase client to hold a complete
+        // local session (access + refresh token). A recovery callback only
+        // gives the app the validated recovery access token, so calling it on
+        // this stateless server client fails with `Auth session missing!`.
+        // The token and its recovery AMR have both been verified above; update
+        // that exact validated user through the admin API instead.
+        const { data, error } = await supabaseAdmin.auth.admin.updateUserById(tokenData.user.id, {
+            password: cleanPassword,
+        })
 
         if (error) {
             logAuthFailure("Password reset failed", error)

@@ -33,6 +33,7 @@ import { Sentry } from "./instrument.ts"
 import { logger } from "./Config/Logger.ts"
 import { Health } from "./Controller/Health.ts"
 import { AuthMiddleware } from "./Middleware/AuthMiddleware.ts"
+import { AudioAuthMiddleware } from "./Middleware/AudioAuthMiddleware.ts"
 
 const app = express()
 app.set("trust proxy", 1)
@@ -322,7 +323,8 @@ const streamAudioFile = async (
     relativeFilePath: string,
     req: Request,
     res: Response,
-    notFoundMessage: string
+    notFoundMessage: string,
+    cacheControl = "private, max-age=3600"
 ) => {
     const filePath = path.resolve(basePath, relativeFilePath)
     const extension = path.extname(filePath).toLowerCase()
@@ -342,7 +344,7 @@ const streamAudioFile = async (
         const commonHeaders = {
             "Accept-Ranges": "bytes",
             "Content-Type": AUDIO_CONTENT_TYPES[extension] || "application/octet-stream",
-            "Cache-Control": "private, max-age=3600", // authenticated media must not enter shared caches
+            "Cache-Control": cacheControl,
             "Content-Disposition": "inline",
             "X-Content-Type-Options": "nosniff",
             "X-Accel-Buffering": "no", // Disables Nginx buffering for real-time delivery
@@ -440,12 +442,13 @@ app.use(
 // Direct audio delivery is authenticated and retains HTTP Range support for
 // seeking, background playback and lock-screen controls. Production CDN URLs
 // must be signed/private as documented in PASSAGE_GUEST_MODE_EXTERNAL_SETUP.md.
-app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, AuthMiddleware, async (req, res) => {
+app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, AudioAuthMiddleware, async (req, res) => {
     return streamAudioFile(soundscapesPath, req.params[0], req, res, "Soundscape not found")
 })
 
-app.get(/^\/previews\/(.+\.(?:m4a|mp3|ogg|wav))$/i, AuthMiddleware, async (req, res) => {
-    return streamAudioFile(previewsPath, req.params[0], req, res, "Preview not found")
+// Preview clips are public — no token needed. Used by the pre-sign-in onboarding.
+app.get(/^\/previews\/(.+\.(?:m4a|mp3|ogg|wav))$/i, async (req, res) => {
+    return streamAudioFile(previewsPath, req.params[0], req, res, "Preview not found", "public, max-age=3600")
 })
 
 app.get("/privacy-policy", async (_req, res) => {

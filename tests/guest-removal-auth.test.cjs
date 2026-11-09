@@ -34,14 +34,28 @@ test('recommendations, support, analytics and home recommendations require auth'
   }
 });
 
-test('direct audio routes require auth and preserve byte-range support', () => {
+test('soundscapes use AudioAuthMiddleware; previews are public; byte-range support intact', () => {
   const server = read('server.ts');
-  assert.match(server, /app\.get\(\/\^\\\/soundscapes.*AuthMiddleware/);
-  assert.match(server, /app\.get\(\/\^\\\/previews.*AuthMiddleware/);
+  // Soundscapes use the lightweight cached AudioAuthMiddleware (not the heavy AuthMiddleware).
+  assert.match(server, /app\.get\(\/\^\\\/soundscapes.*AudioAuthMiddleware/);
+  // Previews are public — no auth middleware on the previews route.
+  assert.doesNotMatch(server, /app\.get\(\/\^\\\/previews.*AuthMiddleware/);
+  // Byte-range (seek/seek/background playback) support intact.
   assert.match(server, /"Accept-Ranges": "bytes"/);
   assert.match(server, /"Content-Range": `bytes/);
   assert.match(server, /res\.writeHead\(206/);
-  assert.match(server, /"Cache-Control": "private/);
+  // The default cacheControl for authenticated routes is private; previews pass public explicitly.
+  assert.match(server, /cacheControl = "private, max-age=3600"/);
+  assert.match(server, /"public, max-age=3600"/);
+});
+
+test('AudioAuthMiddleware has WWW-Authenticate header and in-memory cache', () => {
+  const middleware = read('Middleware/AudioAuthMiddleware.ts');
+  assert.match(middleware, /WWW-Authenticate/);
+  assert.match(middleware, /CACHE_TTL_MS/);
+  // Token must never be logged — hash the token before caching.
+  assert.match(middleware, /hashToken/);
+  assert.doesNotMatch(middleware, /console\.log.*token/i);
 });
 
 test('retired data-import endpoint is not registered', () => {

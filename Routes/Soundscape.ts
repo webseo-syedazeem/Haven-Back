@@ -11,6 +11,7 @@ import {
     GetSimilarSoundscapes,
     GetSoundscapesByMode,
     GetSoundscapesModePreview,
+    GetSoundscapeStreamUrl,
     SearchSoundscapes,
 } from "../Controller/Soundscape.ts"
 import { AuthMiddleware } from "../Middleware/AuthMiddleware.ts"
@@ -311,6 +312,58 @@ SoundscapeRoutes.get("/soundscapes/mode/:mode/preview", GetSoundscapesModePrevie
  *         description: Server error
  */
 SoundscapeRoutes.get("/soundscapes/:id/details", AuthMiddleware, GetOneSoundscape)
+
+/**
+ * @swagger
+ * /api/soundscapes/{id}/stream:
+ *   get:
+ *     tags:
+ *       - Soundscapes
+ *     summary: Get a short-lived signed playback URL for one live soundscape
+ *     description: >
+ *       Authenticates the caller once, then returns a time-limited signed URL
+ *       (`?exp=&sig=`) for the soundscape's full audio. The URL needs no
+ *       Authorization header, so playback can be served and cached by the CDN
+ *       edge. If server-side signing is not configured, the raw file_url is
+ *       returned with `signed: false` and the client falls back to its
+ *       Bearer-token streaming path.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       '200':
+ *         description: Playback URL returned successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     url:
+ *                       type: string
+ *                       description: Signed (or raw, when signing is off) audio URL.
+ *                     signed:
+ *                       type: boolean
+ *                     expires_at:
+ *                       type: integer
+ *                       description: Unix seconds at which a signed URL expires. Absent when signed is false.
+ *       '404':
+ *         description: Soundscape not found or not live
+ *       '500':
+ *         description: Server error
+ */
+SoundscapeRoutes.get("/soundscapes/:id/stream", AuthMiddleware, GetSoundscapeStreamUrl)
 
 /**
  * @swagger

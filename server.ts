@@ -33,7 +33,7 @@ import { Sentry } from "./instrument.ts"
 import { logger } from "./Config/Logger.ts"
 import { Health } from "./Controller/Health.ts"
 import { AuthMiddleware } from "./Middleware/AuthMiddleware.ts"
-import { AudioAuthMiddleware } from "./Middleware/AudioAuthMiddleware.ts"
+import { AudioAccessMiddleware } from "./Middleware/AudioAccessMiddleware.ts"
 
 const app = express()
 app.set("trust proxy", 1)
@@ -439,11 +439,17 @@ app.use(
     })
 )
 
-// Direct audio delivery is authenticated and retains HTTP Range support for
-// seeking, background playback and lock-screen controls. Production CDN URLs
-// must be signed/private as documented in PASSAGE_GUEST_MODE_EXTERNAL_SETUP.md.
-app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, AudioAuthMiddleware, async (req, res) => {
-    return streamAudioFile(soundscapesPath, req.params[0], req, res, "Soundscape not found")
+// Direct audio delivery keeps HTTP Range support for seeking, background
+// playback and lock-screen controls. Access is granted either by a signed URL
+// (`?exp=&sig=`) or, for older app builds, a Bearer token — see
+// AudioAccessMiddleware. A signed request carries no Authorization header, so it
+// is served with a *public* cache policy and can be cached at the CDN edge; the
+// Bearer path stays `private`.
+app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, AudioAccessMiddleware, async (req, res) => {
+    const cacheControl = res.locals.signedMediaAccess
+        ? "public, max-age=3600"
+        : "private, max-age=3600"
+    return streamAudioFile(soundscapesPath, req.params[0], req, res, "Soundscape not found", cacheControl)
 })
 
 // Preview clips are public — no token needed. Used by the pre-sign-in onboarding.

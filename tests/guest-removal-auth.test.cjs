@@ -34,19 +34,22 @@ test('recommendations, support, analytics and home recommendations require auth'
   }
 });
 
-test('soundscapes use AudioAuthMiddleware; previews are public; byte-range support intact', () => {
+test('soundscapes use AudioAccessMiddleware; previews are public; byte-range support intact', () => {
   const server = read('server.ts');
-  // Soundscapes use the lightweight cached AudioAuthMiddleware (not the heavy AuthMiddleware).
-  assert.match(server, /app\.get\(\/\^\\\/soundscapes.*AudioAuthMiddleware/);
+  // Soundscapes are gated by AudioAccessMiddleware (signed URL OR, for older app
+  // builds, a Bearer token) — never left open like the public previews route.
+  assert.match(server, /app\.get\(\/\^\\\/soundscapes.*AudioAccessMiddleware/);
   // Previews are public — no auth middleware on the previews route.
   assert.doesNotMatch(server, /app\.get\(\/\^\\\/previews.*AuthMiddleware/);
   // Byte-range (seek/seek/background playback) support intact.
   assert.match(server, /"Accept-Ranges": "bytes"/);
   assert.match(server, /"Content-Range": `bytes/);
   assert.match(server, /res\.writeHead\(206/);
-  // The default cacheControl for authenticated routes is private; previews pass public explicitly.
-  assert.match(server, /cacheControl = "private, max-age=3600"/);
+  // A signed (header-less) request is served public so the CDN edge can cache it;
+  // the legacy Bearer path stays private.
+  assert.match(server, /res\.locals\.signedMediaAccess/);
   assert.match(server, /"public, max-age=3600"/);
+  assert.match(server, /"private, max-age=3600"/);
 });
 
 test('AudioAuthMiddleware has WWW-Authenticate header and in-memory cache', () => {

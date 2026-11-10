@@ -2,6 +2,7 @@ import { remember, CacheTTL, CacheReadError, libraryCacheKey, nextSequence } fro
 import { selectPreviewCombination } from "../Utils/PreviewRotation.ts"
 import type { Request, Response } from "express"
 import { supabaseAdmin } from "../Config/Dbconnection.ts"
+import { isMediaSigningConfigured, signMediaUrl } from "../Utils/MediaSigning.ts"
 
 const SOUNDSCAPE_MODES = ["sleep", "relax", "focus"] as const
 const LIBRARY_SORTS = [
@@ -542,6 +543,67 @@ export const GetOneSoundscape = async (req: Request, res: Response) => {
         }
 
         console.error("Error getting soundscape:", err)
+        return res.status(500).json({ success: false, error: "Internal server error" })
+    }
+}
+
+/**
+ * Mints a short-lived signed playback URL for one live soundscape.
+ *
+ * The app calls this right before playing. The user is authenticated here once
+ * (AuthMiddleware), and in return gets a URL whose access is proven by its
+ * `?exp=&sig=` query string — no Authorization header on the stream itself, so
+ * the audio can be served (and cached) by the CDN edge instead of streaming from
+ * the single origin on every Range request.
+ *
+ * When signing is not configured, the raw file_url is returned with
+ * `signed: false`, and the client transparently falls back to its older
+ * Bearer-header streaming path — so this endpoint is safe to ship before the
+ * signing secret is set.
+ */
+export const GetSoundscapeStreamUrl = async (req: Request, res: Response) => {
+    const soundscapeId = String(req.params.id || "").trim()
+
+    if (!soundscapeId) {
+        return res.status(400).json({ success: false, error: "soundscape id is required" })
+    }
+
+    try {
+        const { data: soundscape, error } = await supabaseAdmin
+            .from("soundscapes")
+            .select("id, file_url")
+            .eq("id", soundscapeId)
+            .eq("status", "live")
+            .maybeSingle()
+
+        if (error) {
+            console.error("Get soundscape stream url error:", error)
+            return res.status(500).json({ success: false, error: "Failed to get soundscape" })
+        }
+
+        const fileUrl = typeof soundscape?.file_url === "string" ? soundscape.file_url.trim() : ""
+        if (!soundscape || !fileUrl) {
+            return res.status(404).json({ success: false, error: "Soundscape not found" })
+        }
+
+        // Never cache this response — each one is a fresh, expiring grant.
+        res.set("Cache-Control", "no-store")
+
+        if (!isMediaSigningConfigured()) {
+            return res.status(200).json({ success: true, data: { url: fileUrl, signed: false } })
+        }
+
+        const signed = signMediaUrl(fileUrl)
+        if (!signed) {
+            return res.status(200).json({ success: true, data: { url: fileUrl, signed: false } })
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: { url: signed.url, signed: true, expires_at: signed.expiresAt },
+        })
+    } catch (err) {
+        console.error("Error signing soundscape stream url:", err)
         return res.status(500).json({ success: false, error: "Internal server error" })
     }
 }

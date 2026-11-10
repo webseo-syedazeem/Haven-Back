@@ -41,8 +41,6 @@ Options:
 
   --bitrate <value>   Target bitrate. Default: 128k
 
-  --concurrency <n>   Number of files to process at once. Default: 8
-
   --delete-source     Delete the "<name>.m4a.orig" backups (the original
                       higher-bitrate files). Run this only after you have
                       verified the 128k files are good.
@@ -76,8 +74,6 @@ const TARGET_DIR = path.resolve(
 
 const AAC_BITRATE = optionValue('--bitrate', '128k');
 
-const CONCURRENCY = Number.parseInt(optionValue('--concurrency', '8'), 10);
-
 const DELETE_SOURCE = args.includes('--delete-source');
 
 const BACKUP_SUFFIX = '.orig';
@@ -89,10 +85,6 @@ const WORKING_MARKER = '.128k-working';
 
 if (!/^\d+k$/i.test(AAC_BITRATE) || Number.parseInt(AAC_BITRATE, 10) < 8) {
   throw new Error(`Invalid --bitrate: ${AAC_BITRATE}. Example: 128k`);
-}
-
-if (!Number.isInteger(CONCURRENCY) || CONCURRENCY < 1) {
-  throw new Error(`Invalid --concurrency: ${CONCURRENCY}. Use a positive whole number.`);
 }
 
 if (!ffmpegPath) {
@@ -271,7 +263,6 @@ async function main() {
   console.log('==================================');
   console.log(`\nSource folder: ${TARGET_DIR}`);
   console.log(`Target bitrate: ${AAC_BITRATE}`);
-  console.log(`Concurrent files: ${CONCURRENCY}`);
   console.log(`Delete original backups: ${DELETE_SOURCE ? 'YES' : 'NO'}`);
 
   const files = findM4aFiles(TARGET_DIR);
@@ -284,28 +275,19 @@ async function main() {
     failed: 0,
   };
 
-  let nextFileIndex = 0;
-
-  async function worker() {
-    while (nextFileIndex < files.length) {
-      const filePath = files[nextFileIndex++];
-
-      try {
-        const result = await processFile(filePath);
-        summary.converted += Number(result.converted);
-        summary.skipped += Number(result.skipped);
-        summary.deletedBackup += Number(result.deletedBackup);
-      } catch (error) {
-        summary.failed++;
-        console.error(`  FAILED: ${path.relative(TARGET_DIR, filePath)}`);
-        console.error(`  Reason: ${error.message}`);
-        console.error('  Original left untouched. Other files will continue.');
-      }
+  for (const filePath of files) {
+    try {
+      const result = await processFile(filePath);
+      summary.converted += Number(result.converted);
+      summary.skipped += Number(result.skipped);
+      summary.deletedBackup += Number(result.deletedBackup);
+    } catch (error) {
+      summary.failed++;
+      console.error(`  FAILED: ${path.relative(TARGET_DIR, filePath)}`);
+      console.error(`  Reason: ${error.message}`);
+      console.error('  Original left untouched. Other files will continue.');
     }
   }
-
-  const workerCount = Math.min(CONCURRENCY, files.length);
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
   console.log('\n==================================');
   console.log(' SUMMARY');

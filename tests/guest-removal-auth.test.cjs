@@ -48,7 +48,7 @@ test('soundscapes are gated by AudioAccessMiddleware (signed URLs only); preview
   assert.match(server, /"Content-Range": `bytes/);
   assert.match(server, /res\.writeHead\(206/);
   // A signed (header-less) request is served public so the CDN edge can cache it.
-  assert.match(server, /"Soundscape not found", "public, max-age=86400"/);
+  assert.match(server, /"Soundscape not found", "public, max-age=604800"/);
   // The old Bearer middleware is gone entirely.
   assert.doesNotMatch(server, /AudioAuthMiddleware/);
 });

@@ -445,9 +445,9 @@ app.use(
 // Authorization header, so it is served with a *public* cache policy and can be
 // cached at the CDN edge.
 app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, AudioAccessMiddleware, async (req, res) => {
-    // 1 day: soundscape audio is effectively immutable, so let the CDN edge keep
+    // 7 days: soundscape audio is effectively immutable, so let the CDN edge keep
     // it cached. If a file is ever replaced, invalidate /soundscapes/*.
-    return streamAudioFile(soundscapesPath, req.params[0], req, res, "Soundscape not found", "public, max-age=86400")
+    return streamAudioFile(soundscapesPath, req.params[0], req, res, "Soundscape not found", "public, max-age=604800")
 })
 
 // Preview clips are public and immutable in practice — no token needed. Used by

@@ -40,7 +40,7 @@ const ttlSeconds =
 // URL, so the CDN caches ONE copy and reuses it for the whole window instead of
 // re-fetching from origin each time the signature rotates. 1 day matches the audio
 // Cache-Control. (A leaked link is then valid for up to ~1 day.)
-const BUCKET_SECONDS = 24 * 60 * 60
+const BUCKET_SECONDS = 7 * 24 * 60 * 60
 
 export function isMediaSigningConfigured(): boolean {
     return secret.length > 0

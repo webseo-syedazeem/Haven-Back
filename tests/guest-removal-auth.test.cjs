@@ -41,12 +41,14 @@ test('soundscapes are gated by AudioAccessMiddleware (signed URLs only); preview
   assert.match(server, /app\.get\(\/\^\\\/soundscapes.*AudioAccessMiddleware/);
   // Previews are public — no auth middleware on the previews route.
   assert.doesNotMatch(server, /app\.get\(\/\^\\\/previews.*AuthMiddleware/);
+  // Preview clips never change in place, so browser/CDN copies stay fresh for 365 days.
+  assert.match(server, /"Preview not found", "public, max-age=31536000"/);
   // Byte-range (seek/seek/background playback) support intact.
   assert.match(server, /"Accept-Ranges": "bytes"/);
   assert.match(server, /"Content-Range": `bytes/);
   assert.match(server, /res\.writeHead\(206/);
   // A signed (header-less) request is served public so the CDN edge can cache it.
-  assert.match(server, /"public, max-age=3600"/);
+  assert.match(server, /"Soundscape not found", "public, max-age=86400"/);
   // The old Bearer middleware is gone entirely.
   assert.doesNotMatch(server, /AudioAuthMiddleware/);
 });

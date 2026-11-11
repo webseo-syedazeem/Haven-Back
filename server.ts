@@ -450,9 +450,11 @@ app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, AudioAccessMiddleware, as
     return streamAudioFile(soundscapesPath, req.params[0], req, res, "Soundscape not found", "public, max-age=86400")
 })
 
-// Preview clips are public — no token needed. Used by the pre-sign-in onboarding.
+// Preview clips are public and immutable in practice — no token needed. Used by
+// the pre-sign-in onboarding. Keep them at the CDN edge for 365 days; if a clip
+// ever changes, publish it under a new filename/URL instead of overwriting it.
 app.get(/^\/previews\/(.+\.(?:m4a|mp3|ogg|wav))$/i, async (req, res) => {
-    return streamAudioFile(previewsPath, req.params[0], req, res, "Preview not found", "public, max-age=3600")
+    return streamAudioFile(previewsPath, req.params[0], req, res, "Preview not found", "public, max-age=31536000")
 })
 
 app.get("/privacy-policy", async (_req, res) => {

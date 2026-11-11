@@ -34,10 +34,10 @@ test('recommendations, support, analytics and home recommendations require auth'
   }
 });
 
-test('soundscapes use AudioAccessMiddleware; previews are public; byte-range support intact', () => {
+test('soundscapes are gated by AudioAccessMiddleware (signed URLs only); previews are public; byte-range support intact', () => {
   const server = read('server.ts');
-  // Soundscapes are gated by AudioAccessMiddleware (signed URL OR, for older app
-  // builds, a Bearer token) — never left open like the public previews route.
+  // Soundscapes are gated by AudioAccessMiddleware (valid signed URL only) —
+  // never left open like the public previews route.
   assert.match(server, /app\.get\(\/\^\\\/soundscapes.*AudioAccessMiddleware/);
   // Previews are public — no auth middleware on the previews route.
   assert.doesNotMatch(server, /app\.get\(\/\^\\\/previews.*AuthMiddleware/);
@@ -45,20 +45,20 @@ test('soundscapes use AudioAccessMiddleware; previews are public; byte-range sup
   assert.match(server, /"Accept-Ranges": "bytes"/);
   assert.match(server, /"Content-Range": `bytes/);
   assert.match(server, /res\.writeHead\(206/);
-  // A signed (header-less) request is served public so the CDN edge can cache it;
-  // the legacy Bearer path stays private.
-  assert.match(server, /res\.locals\.signedMediaAccess/);
+  // A signed (header-less) request is served public so the CDN edge can cache it.
   assert.match(server, /"public, max-age=3600"/);
-  assert.match(server, /"private, max-age=3600"/);
+  // The old Bearer middleware is gone entirely.
+  assert.doesNotMatch(server, /AudioAuthMiddleware/);
 });
 
-test('AudioAuthMiddleware has WWW-Authenticate header and in-memory cache', () => {
-  const middleware = read('Middleware/AudioAuthMiddleware.ts');
-  assert.match(middleware, /WWW-Authenticate/);
-  assert.match(middleware, /CACHE_TTL_MS/);
-  // Token must never be logged — hash the token before caching.
-  assert.match(middleware, /hashToken/);
-  assert.doesNotMatch(middleware, /console\.log.*token/i);
+test('AudioAccessMiddleware requires a valid signature and has no Bearer fallback', () => {
+  const middleware = read('Middleware/AudioAccessMiddleware.ts');
+  assert.match(middleware, /verifyMediaSignature/);
+  assert.match(middleware, /INVALID_SIGNATURE/);
+  assert.match(middleware, /MEDIA_SIGNING_NOT_CONFIGURED/);
+  // No fallback to a token-based middleware, and no reading of an auth header.
+  assert.doesNotMatch(middleware, /AudioAuthMiddleware/);
+  assert.doesNotMatch(middleware, /req\.headers\.authorization/i);
 });
 
 test('retired data-import endpoint is not registered', () => {

@@ -324,9 +324,8 @@ SoundscapeRoutes.get("/soundscapes/:id/details", AuthMiddleware, GetOneSoundscap
  *       Authenticates the caller once, then returns a time-limited signed URL
  *       (`?exp=&sig=`) for the soundscape's full audio. The URL needs no
  *       Authorization header, so playback can be served and cached by the CDN
- *       edge. If server-side signing is not configured, the raw file_url is
- *       returned with `signed: false` and the client falls back to its
- *       Bearer-token streaming path.
+ *       edge. This is the only access path for full audio. Returns 500 if
+ *       server-side media signing is not configured.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -352,12 +351,10 @@ SoundscapeRoutes.get("/soundscapes/:id/details", AuthMiddleware, GetOneSoundscap
  *                   properties:
  *                     url:
  *                       type: string
- *                       description: Signed (or raw, when signing is off) audio URL.
- *                     signed:
- *                       type: boolean
+ *                       description: Signed audio URL (`?exp=&sig=`).
  *                     expires_at:
  *                       type: integer
- *                       description: Unix seconds at which a signed URL expires. Absent when signed is false.
+ *                       description: Unix seconds at which the signed URL expires.
  *       '404':
  *         description: Soundscape not found or not live
  *       '500':

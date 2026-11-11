@@ -590,17 +590,25 @@ export const GetSoundscapeStreamUrl = async (req: Request, res: Response) => {
         res.set("Cache-Control", "no-store")
 
         if (!isMediaSigningConfigured()) {
-            return res.status(200).json({ success: true, data: { url: fileUrl, signed: false } })
+            return res.status(500).json({
+                success: false,
+                error: "Media signing is not configured",
+                code: "MEDIA_SIGNING_NOT_CONFIGURED",
+            })
         }
 
         const signed = signMediaUrl(fileUrl)
         if (!signed) {
-            return res.status(200).json({ success: true, data: { url: fileUrl, signed: false } })
+            return res.status(500).json({
+                success: false,
+                error: "Failed to sign media URL",
+                code: "MEDIA_SIGNING_FAILED",
+            })
         }
 
         return res.status(200).json({
             success: true,
-            data: { url: signed.url, signed: true, expires_at: signed.expiresAt },
+            data: { url: signed.url, expires_at: signed.expiresAt },
         })
     } catch (err) {
         console.error("Error signing soundscape stream url:", err)

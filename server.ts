@@ -440,16 +440,12 @@ app.use(
 )
 
 // Direct audio delivery keeps HTTP Range support for seeking, background
-// playback and lock-screen controls. Access is granted either by a signed URL
-// (`?exp=&sig=`) or, for older app builds, a Bearer token — see
-// AudioAccessMiddleware. A signed request carries no Authorization header, so it
-// is served with a *public* cache policy and can be cached at the CDN edge; the
-// Bearer path stays `private`.
+// playback and lock-screen controls. Access is granted only by a valid signed
+// URL (`?exp=&sig=`) — see AudioAccessMiddleware. Such a request carries no
+// Authorization header, so it is served with a *public* cache policy and can be
+// cached at the CDN edge.
 app.get(/^\/soundscapes\/(.+\.(?:m4a|mp3|ogg|wav))$/i, AudioAccessMiddleware, async (req, res) => {
-    const cacheControl = res.locals.signedMediaAccess
-        ? "public, max-age=3600"
-        : "private, max-age=3600"
-    return streamAudioFile(soundscapesPath, req.params[0], req, res, "Soundscape not found", cacheControl)
+    return streamAudioFile(soundscapesPath, req.params[0], req, res, "Soundscape not found", "public, max-age=3600")
 })
 
 // Preview clips are public — no token needed. Used by the pre-sign-in onboarding.

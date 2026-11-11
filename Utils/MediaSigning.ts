@@ -35,10 +35,12 @@ const ttlSeconds =
         ? Number(process.env.MEDIA_URL_TTL_SECONDS)
         : DEFAULT_TTL_SECONDS
 
-// Round every expiry up to a whole hour. Everyone who signs the same file within
-// the same hour then gets a byte-identical URL, so the CDN caches one copy and
-// shares it instead of treating each user's URL as a unique, uncacheable object.
-const BUCKET_SECONDS = 60 * 60
+// Round every expiry up to a coarse boundary so the signed URL stays byte-identical
+// for a window. Everyone who signs the same file within the same window gets the same
+// URL, so the CDN caches ONE copy and reuses it for the whole window instead of
+// re-fetching from origin each time the signature rotates. 1 day matches the audio
+// Cache-Control. (A leaked link is then valid for up to ~1 day.)
+const BUCKET_SECONDS = 24 * 60 * 60
 
 export function isMediaSigningConfigured(): boolean {
     return secret.length > 0

@@ -31,10 +31,12 @@ test('a freshly signed URL points at the CDN host and verifies', () => {
     )
 })
 
-test('the expiry is bucketed to a whole hour so URLs are shareable/cacheable', () => {
+test('the expiry is bucketed to a coarse boundary so URLs stay shareable/cacheable', () => {
     const signed = signMediaUrl('/soundscapes/rain.m4a')
     assert.ok(signed)
-    assert.equal(signed.expiresAt % 3600, 0, 'exp must land on an hour boundary')
+    // Bucketed to a whole day (30-day bucket), so a URL stays identical for a long
+    // window and the CDN reuses one cached copy.
+    assert.equal(signed.expiresAt % 86400, 0, 'exp must land on a day boundary')
 })
 
 test('a bare absolute path signs and keeps the CDN host', () => {

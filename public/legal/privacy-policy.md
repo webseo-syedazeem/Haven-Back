@@ -182,7 +182,7 @@ If you have questions, concerns, or requests regarding this Privacy Policy or yo
 **HAPPY CHEEKS LTD**
 Company number: **15146182**
 Contact: **via Profile → Contact Support in the App**
-Website: **https://passagesounds.app**
+Website: **https://api.passagesounds.app**
 Address: **Apartment 37 Ellis Court, Textile Street, Dewsbury, England, WF13 2EX**
 
 ---

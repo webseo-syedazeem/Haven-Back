@@ -16,7 +16,7 @@ test('signing is reported as configured when a secret is set', () => {
 })
 
 test('a freshly signed URL points at the CDN host and verifies', () => {
-    const signed = signMediaUrl('https://passagesounds.app/soundscapes/rain.m4a')
+    const signed = signMediaUrl('https://api.passagesounds.app/soundscapes/rain.m4a')
     assert.ok(signed, 'expected a signed URL')
     assert.match(
         signed.url,

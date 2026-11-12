@@ -10,7 +10,7 @@
 --   www.thehappyapp.co.uk
 --
 -- The path, query string and fragment after the hostname are preserved. Every
--- migrated URL is normalised to HTTPS on https://passagesounds.app.
+-- migrated URL is normalised to HTTPS on https://api.passagesounds.app.
 
 begin;
 
@@ -35,7 +35,7 @@ with updated as (
         then regexp_replace(
           artwork_url,
           '^(https?://)?(www\.)?thehappyapp\.co\.uk([/?#]|$)',
-          'https://passagesounds.app\3',
+          'https://api.passagesounds.app\3',
           'i'
         )
       else artwork_url
@@ -45,7 +45,7 @@ with updated as (
         then regexp_replace(
           file_url,
           '^(https?://)?(www\.)?thehappyapp\.co\.uk([/?#]|$)',
-          'https://passagesounds.app\3',
+          'https://api.passagesounds.app\3',
           'i'
         )
       else file_url
@@ -55,7 +55,7 @@ with updated as (
         then regexp_replace(
           preview_url,
           '^(https?://)?(www\.)?thehappyapp\.co\.uk([/?#]|$)',
-          'https://passagesounds.app\3',
+          'https://api.passagesounds.app\3',
           'i'
         )
       else preview_url

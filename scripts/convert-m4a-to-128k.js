@@ -39,6 +39,19 @@ Options:
   --dir <path>        Source folder (recurses into subfolders).
                       Default: public/soundscapes
 
+  --preview           Convert every M4A under public/previews to 128k.
+
+  --preview-delete    Convert public/previews to 128k and delete each original
+                      192k source only after its 128k output passes validation.
+
+  --new-focus-soundscapes
+                      Convert every M4A under public/new_focus_soundscapes
+                      to 128k, including files in its preview subfolder.
+
+  --new-focus-soundscapes-delete
+                      Convert public/new_focus_soundscapes to 128k and delete
+                      each original source after successful validation.
+
   --bitrate <value>   Target bitrate. Default: 128k
 
   --delete-source     Delete the "<name>.m4a.orig" backups (the original
@@ -61,6 +74,18 @@ Examples:
   # Check Sleep, Focus, Relax, and all other folders without changing files:
   node scripts/convert-m4a-to-128k.js --check
 
+  # Convert all preview clips to 128k:
+  node scripts/convert-m4a-to-128k.js --preview
+
+  # Convert all preview clips and delete validated original 192k sources:
+  node scripts/convert-m4a-to-128k.js --preview-delete
+
+  # Convert all new Focus soundscapes (including its preview folder) to 128k:
+  node scripts/convert-m4a-to-128k.js --new-focus-soundscapes
+
+  # Convert new Focus files and delete validated original sources:
+  node scripts/convert-m4a-to-128k.js --new-focus-soundscapes-delete
+
 Notes:
   - A file that already has a "<name>.m4a.orig" backup is treated as already
     converted and is skipped (so re-running is safe/idempotent). To force a
@@ -68,7 +93,8 @@ Notes:
   - Leftover ".128k-working-<pid>.m4a" files from an interrupted run are
     recovered automatically when complete, or removed and re-created when
     incomplete.
-  - The "preview" folders are skipped.
+  - Normal soundscape mode skips nested "preview" folders. The explicit
+    --preview and --new-focus-soundscapes modes include their entire trees.
 `);
   process.exit(0);
 }
@@ -77,14 +103,38 @@ Notes:
 // CONFIGURATION
 // --------------------------------------------------
 
+const PREVIEW_DELETE_MODE = args.includes('--preview-delete');
+const NEW_FOCUS_DELETE_MODE = args.includes('--new-focus-soundscapes-delete');
+const PREVIEW_MODE = args.includes('--preview') || PREVIEW_DELETE_MODE;
+const NEW_FOCUS_MODE = args.includes('--new-focus-soundscapes') || NEW_FOCUS_DELETE_MODE;
+const HAS_CUSTOM_DIR = args.includes('--dir');
+
+const selectedTargets = Number(PREVIEW_MODE) + Number(NEW_FOCUS_MODE) + Number(HAS_CUSTOM_DIR);
+
+if (selectedTargets > 1) {
+  throw new Error(
+    'Use only one target selector: --preview, --new-focus-soundscapes, or --dir.'
+  );
+}
+
+const selectedDirectory = PREVIEW_MODE
+  ? path.join('public', 'previews')
+  : NEW_FOCUS_MODE
+    ? path.join('public', 'new_focus_soundscapes')
+    : optionValue('--dir', path.join('public', 'soundscapes'));
+
 const TARGET_DIR = path.resolve(
   PROJECT_ROOT,
-  optionValue('--dir', path.join('public', 'soundscapes'))
+  selectedDirectory
 );
+
+// The normal soundscapes tree intentionally excludes nested preview folders.
+// The two explicit modes process every nested M4A in their selected tree.
+const SKIP_PREVIEW_DIRECTORIES = !PREVIEW_MODE && !NEW_FOCUS_MODE;
 
 const AAC_BITRATE = optionValue('--bitrate', '128k');
 
-const DELETE_SOURCE = args.includes('--delete-source');
+const DELETE_SOURCE = args.includes('--delete-source') || PREVIEW_DELETE_MODE || NEW_FOCUS_DELETE_MODE;
 const CHECK_ONLY = args.includes('--check');
 
 const BACKUP_SUFFIX = '.orig';
@@ -116,8 +166,11 @@ function findM4aFiles(directory) {
       const fullPath = path.join(currentDir, entry.name);
 
       if (entry.isDirectory()) {
-        // Never descend into preview folders.
-        if (entry.name.toLowerCase() === 'preview' || entry.name.toLowerCase() === 'previews') {
+        const directoryName = entry.name.toLowerCase();
+        if (
+          SKIP_PREVIEW_DIRECTORIES &&
+          (directoryName === 'preview' || directoryName === 'previews')
+        ) {
           continue;
         }
         walk(fullPath);
@@ -149,7 +202,11 @@ function findWorkingFiles(directory) {
       const fullPath = path.join(currentDir, entry.name);
 
       if (entry.isDirectory()) {
-        if (entry.name.toLowerCase() === 'preview' || entry.name.toLowerCase() === 'previews') {
+        const directoryName = entry.name.toLowerCase();
+        if (
+          SKIP_PREVIEW_DIRECTORIES &&
+          (directoryName === 'preview' || directoryName === 'previews')
+        ) {
           continue;
         }
         walk(fullPath);
@@ -359,10 +416,12 @@ async function recoverInterruptedConversions() {
 // never renames or deletes anything.
 function checkWorkingFiles() {
   const workingFiles = findWorkingFiles(TARGET_DIR);
+  const m4aFiles = findM4aFiles(TARGET_DIR);
 
   console.log('\n==================================');
   console.log(' WORKING FILE CHECK (READ-ONLY)');
   console.log('==================================');
+  console.log(`\nM4A files in selected tree: ${m4aFiles.length}`);
 
   if (workingFiles.length === 0) {
     console.log('\nNo leftover 128k-working files found.');
@@ -496,6 +555,7 @@ async function main() {
   console.log(' M4A -> 128k RE-ENCODER');
   console.log('==================================');
   console.log(`\nSource folder: ${TARGET_DIR}`);
+  console.log(`Mode: ${PREVIEW_MODE ? 'PREVIEW CLIPS' : NEW_FOCUS_MODE ? 'NEW FOCUS SOUNDSCAPES' : 'SOUNDSCAPES'}`);
   console.log(`Target bitrate: ${AAC_BITRATE}`);
   console.log(`Delete original backups: ${DELETE_SOURCE ? 'YES' : 'NO'}`);
 

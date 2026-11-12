@@ -333,12 +333,23 @@ export const SyncGoogleProfile = async (req: Request, res: Response) => {
         const metadata = authUser.user_metadata || {}
         const email = authUser.email || ""
         const name = String(metadata.full_name || metadata.name || email.split("@")[0])
-        const profileImageUrl: string | null = metadata.avatar_url || metadata.picture || null
-        const authProvider = String(authUser.app_metadata?.provider || "")
+        const rawProfileImageUrl = metadata.avatar_url || metadata.picture
+        const profileImageUrl =
+            typeof rawProfileImageUrl === "string" && rawProfileImageUrl.trim()
+                ? rawProfileImageUrl.trim()
+                : null
+        const authProviders = new Set([
+            String(authUser.app_metadata?.provider || ""),
+            ...(Array.isArray(authUser.app_metadata?.providers)
+                ? authUser.app_metadata.providers.map((provider: unknown) => String(provider))
+                : []),
+            ...(authUser.identities || []).map((identity) => String(identity.provider || "")),
+        ])
+        const isGoogleProvider = authProviders.has("google")
 
         const { data: existing, error: existingError } = await supabaseAdmin
             .from("users")
-            .select("name, google_image_synced")
+            .select("name, profile_image_url, google_image_synced")
             .eq("auth_user_id", authUser.id)
             .maybeSingle()
 
@@ -349,20 +360,25 @@ export const SyncGoogleProfile = async (req: Request, res: Response) => {
 
         const alreadySynced = existing?.google_image_synced === true
         const generatedFallbackName = email.split("@")[0]
+        const shouldUseProviderName = !existing?.name?.trim() || existing.name === generatedFallbackName
         const payload: Record<string, any> = {
             auth_user_id: authUser.id,
+            // `users.name` is NOT NULL. It must be present on the INSERT side
+            // of an upsert even when the conflict branch preserves an existing
+            // user-edited name.
+            name: shouldUseProviderName ? name : existing?.name || name,
             email,
             is_verified: true,
             last_sign_in_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
         }
 
-        if (authProvider === "google" && !alreadySynced) {
+        // Only mark the Google image as synced after Google supplied a usable
+        // URL. A missing URL remains retryable on the next authenticated sync.
+        if (isGoogleProvider && profileImageUrl && !alreadySynced) {
             payload.profile_image_url = profileImageUrl
             payload.google_image_synced = true
         }
-
-        if (!existing?.name?.trim() || existing.name === generatedFallbackName) payload.name = name
 
         const { data: profile, error: profileError } = await supabaseAdmin
             .from("users")

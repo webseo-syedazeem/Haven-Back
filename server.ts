@@ -34,6 +34,7 @@ import { logger } from "./Config/Logger.ts"
 import { Health } from "./Controller/Health.ts"
 import { AuthMiddleware } from "./Middleware/AuthMiddleware.ts"
 import { AudioAccessMiddleware } from "./Middleware/AudioAccessMiddleware.ts"
+import { SignSoundscapeUrls } from "./Middleware/SignSoundscapeUrls.ts"
 
 const app = express()
 app.set("trust proxy", 1)
@@ -482,6 +483,10 @@ app.get("/privacy-policy.md", async (_req, res) => {
 
 app.get("/admin", (_req, res) => res.status(410).json({ message: "Legacy admin removed. Use the Passage web admin." }))
 // REMOVED express.static to avoid routing middleware conflicts on "/soundscapes"
+
+// Add signed_file_url next to every soundscape's file_url in /api responses, so
+// the app can play from the CDN without a separate round-trip to sign a URL.
+app.use("/api", SignSoundscapeUrls)
 
 app.use("/api", Authroutes)
 app.use("/api", SoundscapeRoutes)

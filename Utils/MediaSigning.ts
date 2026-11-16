@@ -38,8 +38,14 @@ const ttlSeconds =
 // Round every expiry up to a coarse boundary so the signed URL stays byte-identical
 // for a window. Everyone who signs the same file within the same window gets the same
 // URL, so the CDN caches ONE copy and reuses it for the whole window instead of
-// re-fetching from origin each time the signature rotates. 1 day matches the audio
-// Cache-Control. (A leaked link is then valid for up to ~1 day.)
+// re-fetching from origin each time the signature rotates. This MUST match the audio
+// Cache-Control max-age in server.ts (currently 7 days) so the cache key does not
+// rotate before the edge copy expires.
+//
+// Trade-off: a signed link is shareable/replayable by anyone for up to this window
+// (~7 days). That is acceptable while the audio is free and non-secret. BEFORE a
+// paywall ships, drop this to 1 day (and the matching server.ts max-age) so a copied
+// link cannot hand a week of free playback to non-subscribers.
 const BUCKET_SECONDS = 7 * 24 * 60 * 60
 
 export function isMediaSigningConfigured(): boolean {

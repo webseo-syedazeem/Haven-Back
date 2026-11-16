@@ -42,6 +42,7 @@ const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000").spl
 const soundscapesPath = path.join(process.cwd(), "public", "soundscapes")
 const previewsPath = path.join(process.cwd(), "public", "previews")
 const privacyPolicyPath = path.join(process.cwd(), "public", "legal", "privacy-policy.md")
+const supportPath = path.join(process.cwd(), "public", "legal", "support.md")
 
 // Files are read in bounded pieces, but this is only the server-side I/O buffer.
 // It must never cap an open-ended HTTP Range response from a media player.
@@ -145,13 +146,13 @@ const renderMarkdown = (markdown: string) => {
     return html.join("\n")
 }
 
-const renderPrivacyPolicyPage = (markdown: string) => {
+const renderLegalPage = (title: string, markdown: string) => {
     return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Passage Privacy Policy</title>
+  <title>${escapeHtml(title)}</title>
   <style>
     :root {
       color-scheme: light;
@@ -217,6 +218,9 @@ ${renderMarkdown(markdown)}
 </body>
 </html>`
 }
+
+const renderPrivacyPolicyPage = (markdown: string) => renderLegalPage("Passage Privacy Policy", markdown)
+const renderSupportPage = (markdown: string) => renderLegalPage("Passage Support", markdown)
 
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -476,6 +480,31 @@ app.get("/privacy-policy.md", async (_req, res) => {
     } catch (error: any) {
         if (error.code === "ENOENT") {
             return res.status(404).json({ message: "Privacy policy not found" })
+        }
+        return res.status(500).json({ message: "Internal server error" })
+    }
+})
+
+// App Store Connect requires a public Support URL. This serves one from the same
+// origin as /privacy-policy so the listing can point at https://api.passagesounds.app/support
+app.get("/support", async (_req, res) => {
+    try {
+        const markdown = await fs.promises.readFile(supportPath, "utf8")
+        res.status(200).type("html").send(renderSupportPage(markdown))
+    } catch (error: any) {
+        if (error.code === "ENOENT") {
+            return res.status(404).json({ message: "Support page not found" })
+        }
+        return res.status(500).json({ message: "Internal server error" })
+    }
+})
+
+app.get("/support.md", async (_req, res) => {
+    try {
+        res.status(200).type("text/markdown").send(await fs.promises.readFile(supportPath, "utf8"))
+    } catch (error: any) {
+        if (error.code === "ENOENT") {
+            return res.status(404).json({ message: "Support page not found" })
         }
         return res.status(500).json({ message: "Internal server error" })
     }

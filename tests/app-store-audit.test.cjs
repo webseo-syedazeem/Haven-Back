@@ -64,3 +64,50 @@ test('H-04 back-fill migration file exists and is a transaction', () => {
   assert.match(migration, /contact_email\s*=\s*null/i);
   assert.match(migration, /event_data\s*=\s*'\{\}'::jsonb/i);
 });
+
+// The users table stores apple_refresh_token (a credential). Any users read whose
+// row is returned to the client must select explicit columns, never .select("*"),
+// so the token never leaks. (A dot-anchored pattern so prose about select("*")
+// in comments is not matched.)
+const SAFE_USER_COLUMNS =
+  /\.select\("id, auth_user_id, name, email, profile_image_url, is_verified, onboarding_completed(, analytics_enabled)?, last_sign_in_at, created_at, updated_at"\)/;
+
+/** Slice one `export const <name> = ...` handler body out of a controller source. */
+const handlerBody = (src, name) => {
+  const start = src.indexOf(`export const ${name}`);
+  if (start < 0) return '';
+  const nextIdx = src.indexOf('\nexport const ', start + 1);
+  return src.slice(start, nextIdx < 0 ? src.length : nextIdx);
+};
+
+test('CheckSession returns an explicit user profile, never .select("*") (no credential leak)', () => {
+  const body = handlerBody(read('Controller/Auth.ts'), 'CheckSession');
+  assert.ok(body.length, 'CheckSession handler found');
+  assert.match(body, SAFE_USER_COLUMNS);
+  assert.doesNotMatch(body, /\.select\("\*"\)/);
+});
+
+test('GoogleSignIn returns an explicit user profile, never .select("*") (no credential leak)', () => {
+  const body = handlerBody(read('Controller/Auth.ts'), 'GoogleSignIn');
+  assert.ok(body.length, 'GoogleSignIn handler found');
+  assert.match(body, SAFE_USER_COLUMNS);
+  assert.doesNotMatch(body, /\.select\("\*"\)/);
+});
+
+test('account data export reads explicit user columns, never apple_refresh_token', () => {
+  const body = handlerBody(read('Controller/Account.ts'), 'ExportAccountData');
+  assert.ok(body.length, 'ExportAccountData handler found');
+  // The users row (handed to the user) must use the explicit list WITH analytics_enabled.
+  assert.match(body, /\.select\("id, auth_user_id, name, email, profile_image_url, is_verified, onboarding_completed, analytics_enabled, last_sign_in_at, created_at, updated_at"\)/);
+  // The users read itself must not be a wildcard (other tables may be).
+  assert.doesNotMatch(body, /from\("users"\)[\s\S]{0,40}\.select\("\*"\)/);
+});
+
+test('App Store Support URL page is served from the same origin as the privacy policy', () => {
+  const server = read('server.ts');
+  assert.match(server, /app\.get\("\/support",/);
+  assert.match(server, /renderSupportPage/);
+  const supportMd = read('public/legal/support.md');
+  assert.match(supportMd, /#\s*Passage Support/);
+  assert.match(supportMd, /Contact/i);
+});

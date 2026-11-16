@@ -432,7 +432,9 @@ export const GoogleSignIn = async (req: Request, res: Response) => {
 
         const { data: existingProfile, error: lookupError } = await supabaseAdmin
             .from("users")
-            .select("*")
+            // Explicit columns only — this profile is returned to the client, so it
+            // must never include the apple_refresh_token credential.
+            .select("id, auth_user_id, name, email, profile_image_url, is_verified, onboarding_completed, last_sign_in_at, created_at, updated_at")
             .eq("auth_user_id", authUser.id)
             .maybeSingle()
 
@@ -452,7 +454,7 @@ export const GoogleSignIn = async (req: Request, res: Response) => {
                     name,
                     is_verified: true,
                 })
-                .select("*")
+                .select("id, auth_user_id, name, email, profile_image_url, is_verified, onboarding_completed, last_sign_in_at, created_at, updated_at")
                 .single()
 
             if (profileError) {
@@ -998,7 +1000,9 @@ export const CheckSession = async (req: Request, res: Response) => {
 
         const { data: userProfile, error: profileError } = await supabaseAdmin
             .from("users")
-            .select("*")
+            // Explicit columns only — never select("*"), which would leak the
+            // apple_refresh_token credential to the client. Mirrors GetCurrentUser.
+            .select("id, auth_user_id, name, email, profile_image_url, is_verified, onboarding_completed, last_sign_in_at, created_at, updated_at")
             .eq("auth_user_id", user.id)
             .maybeSingle()
 

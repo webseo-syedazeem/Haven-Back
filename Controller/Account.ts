@@ -48,7 +48,9 @@ export const ExportAccountData = async (req: Request, res: Response) => {
     try {
         const { data: account, error: accountError } = await supabaseAdmin
             .from("users")
-            .select("*")
+            // Explicit columns only — never select("*"). The export is handed to
+            // the user, so it must not include the apple_refresh_token credential.
+            .select("id, auth_user_id, name, email, profile_image_url, is_verified, onboarding_completed, analytics_enabled, last_sign_in_at, created_at, updated_at")
             .eq("auth_user_id", req.user!.id)
             .maybeSingle()
 
